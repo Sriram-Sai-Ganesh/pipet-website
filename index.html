@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <meta name="title" content="Pipelined Transformers: Autoregressive Generation with Increased Parallelism">
+  <meta name="description" content="PipeT pipelines Transformer layers across token positions, decoding up to 4.5x faster with a 6-8x smaller KV cache while remaining autoregressive.">
+  <meta name="keywords" content="Transformer, autoregressive decoding, pipelining, KV cache, language models, state tracking">
+  <meta name="robots" content="index, follow">
+
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Pipelined Transformers: Autoregressive Generation with Increased Parallelism">
+  <meta property="og:description" content="PipeT pipelines Transformer layers across token positions, decoding up to 4.5x faster with a 6-8x smaller KV cache while remaining autoregressive.">
+  <meta property="og:image" content="static/images/figure1_final_version_ptrans.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Pipelined Transformers">
+  <meta name="twitter:image" content="static/images/figure1_final_version_ptrans.png">
+
+  <meta name="citation_title" content="Pipelined Transformers: Autoregressive Generation with Increased Parallelism">
+  <meta name="citation_publication_date" content="2026">
+
+  <title>Pipelined Transformers (PipeT)</title>
+
+  <link rel="stylesheet" href="static/css/bulma.min.css">
+  <link rel="stylesheet" href="static/css/index.css">
+  <link rel="stylesheet" href="static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="static/css/fontawesome.all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script defer src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="static/js/fontawesome.all.min.js"></script>
+  <script defer src="static/js/bulma-carousel.min.js"></script>
+  <script defer src="static/js/index.js"></script>
+</head>
+<body>
+
+  <button class="scroll-to-top" onclick="scrollToTop()" title="Scroll to top" aria-label="Scroll to top">
+    <i class="fas fa-chevron-up"></i>
+  </button>
+
+  <main id="main-content">
+
+  <!-- Title -->
+  <section class="hero">
+    <div class="hero-body">
+      <div class="container is-max-desktop">
+        <div class="columns is-centered">
+          <div class="column has-text-centered">
+            <h1 class="title is-1 publication-title">Pipelined Transformers</h1>
+            <h2 class="subtitle is-4">Autoregressive Generation with Increased Parallelism</h2>
+            <div class="is-size-5 publication-authors">
+              <!-- TODO: replace with author names and links once the paper is de-anonymized -->
+              <span class="author-block">Anonymous Authors</span>
+            </div>
+            <div class="is-size-5 publication-authors">
+              <span class="author-block">Under review</span>
+            </div>
+
+            <div class="column has-text-centered">
+              <div class="publication-links">
+                <!-- TODO: add Paper (PDF) and arXiv buttons once public -->
+                <span class="link-block">
+                  <a href="https://github.com/argolab/PipeT" target="_blank"
+                     class="external-link button is-normal is-rounded is-dark">
+                    <span class="icon"><i class="fab fa-github"></i></span>
+                    <span>Code</span>
+                  </a>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Teaser -->
+  <section class="hero teaser">
+    <div class="container is-max-desktop">
+      <div class="hero-body">
+        <figure class="figure">
+          <img src="static/images/figure1_final_version_ptrans.png" alt="PipeT computation graph: streams at different positions and layers update in parallel">
+        </figure>
+        <h2 class="subtitle has-text-centered">
+          <b>PipeT</b> works on many tokens at once, each at a different layer.
+          A token enters at layer &ell;<sub>in</sub> and the next token is predicted at &ell;<sub>out</sub>,
+          so every timestep emits one token.
+        </h2>
+      </div>
+    </div>
+  </section>
+
+  <!-- Abstract -->
+  <section class="section hero is-light">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-four-fifths">
+          <h2 class="title is-3">Abstract</h2>
+          <div class="content has-text-justified">
+            <p>
+              Transformers are slow at generating text. Each token must be <em>fully</em> generated
+              <em>before</em> work starts on the next token. Diffusion models break this serial decoding
+              bottleneck, but they are non-autoregressive latent-variable models. We propose PipeT, a
+              <em>pipelined</em> architecture that remains autoregressive and simple to train. Tokens are
+              decoded in parallel while attending to one another bidirectionally, as in diffusion, but
+              token <i>i</i>+1 is slightly delayed with respect to token <i>i</i>, so it can depend
+              autoregressively on token <i>i</i> and all previous tokens. This architecture decodes faster
+              than a standard Transformer, reduces KV cache size, and is formally more expressive. Although
+              pretraining and prompt prefilling are slower than in a standard Transformer, this tradeoff may
+              be worth it when generation is a bottleneck, as when generating code or long reasoning traces
+              during RL training or after deployment.
+            </p>
+            <p>
+              We evaluate models with 4M&ndash;200M parameters trained on the SlimPajama-6B subset using
+              Chinchilla-style token budgets. At 100M parameters, a 3-layer PipeT matches the test loss of a
+              4-layer standard Transformer of the same size while decoding 1.8&times; faster with a
+              3.1&times; smaller KV cache. It nearly matches a 16-layer standard Transformer (the best depth
+              we evaluated at this budget), with only 0.0228 bpb (1.86%) higher test loss, while decoding
+              4.4&times; faster with a 6.3&times; smaller KV cache.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Method -->
+  <section class="section">
+    <div class="container is-max-desktop">
+      <h2 class="title is-3">How it works</h2>
+      <div class="content">
+        <p>
+          Like a pipelined CPU, PipeT starts the next token before the current one is done: it computes
+          layer 1 of token 9 together with layer 2 of token 8, layer 3 of token 7, and so on. To make this
+          possible, token input and prediction move to <b>intermediate layers</b>. Each residual stream
+          goes through four stages:
+        </p>
+        <ul>
+          <li><b>Nascent</b>: starts from a learned vector, before its token is known.</li>
+          <li><b>Active</b>: receives its token at &ell;<sub>in</sub> and predicts the next token at &ell;<sub>out</sub>.</li>
+          <li><b>Committed</b>: keeps refining itself using later tokens.</li>
+          <li><b>Finalized</b>: at layer <i>L</i> it stops and keeps a single KV pair.</li>
+        </ul>
+        <p>
+          <b>Mixed-layer attention:</b> each update attends to the highest available layer of every
+          stream. No future token is visible when predicting, so training is ordinary teacher-forced
+          next-token prediction.
+        </p>
+      </div>
+      <figure class="figure">
+        <img src="static/images/figure_final_std_trans.png" alt="Standard Transformer computation graph" loading="lazy">
+        <figcaption>
+          For comparison: a standard Transformer advances only one stream per timestep and emits a token
+          only once every <i>L</i> timesteps.
+        </figcaption>
+      </figure>
+
+      <div class="columns is-multiline">
+        <div class="column is-half">
+          <div class="box property-box">
+            <h3 class="title is-5"><i class="fas fa-bolt"></i> Faster decoding</h3>
+            <p><i>L</i> streams update in parallel against the same KV history, giving about <i>L</i>&times; higher arithmetic intensity.</p>
+          </div>
+        </div>
+        <div class="column is-half">
+          <div class="box property-box">
+            <h3 class="title is-5"><i class="fas fa-memory"></i> Smaller KV cache</h3>
+            <p>Each finished stream keeps one KV pair instead of one per layer: about <i>L</i>&times; less memory.</p>
+          </div>
+        </div>
+        <div class="column is-half">
+          <div class="box property-box">
+            <h3 class="title is-5"><i class="fas fa-redo"></i> Recurrent expressivity</h3>
+            <p>Streams can attend to earlier streams at the same layer, so computation depth grows with sequence length, as in an RNN.</p>
+          </div>
+        </div>
+        <div class="column is-half">
+          <div class="box property-box">
+            <h3 class="title is-5"><i class="fas fa-hourglass-half"></i> The cost</h3>
+            <p>Training and prefill can no longer parallelize over positions, only over layers, so they are slower.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main results -->
+  <section class="section hero is-light">
+    <div class="container is-max-desktop">
+      <h2 class="title is-3">Quality vs. efficiency</h2>
+      <div class="content">
+        <p>
+          At each budget from 4M to 200M parameters, one PipeT model (&#9733;) is compared against a
+          depth&ndash;width sweep of Transformer++ baselines (&#9679;). Lower and further left is better.
+        </p>
+      </div>
+      <div class="columns">
+        <div class="column">
+          <figure class="figure">
+            <img src="static/images/quality-latency.png" alt="Test loss vs decoding time per token" loading="lazy">
+            <figcaption>Test loss vs. decoding time per token.</figcaption>
+          </figure>
+        </div>
+        <div class="column">
+          <figure class="figure">
+            <img src="static/images/quality-kv-cache.png" alt="Test loss vs KV-cache memory" loading="lazy">
+            <figcaption>Test loss vs. KV-cache memory (512 decoding steps).</figcaption>
+          </figure>
+        </div>
+      </div>
+      <table class="table is-fullwidth is-striped stat-table">
+        <thead>
+          <tr><th>Budget</th><th>vs. Transformer++</th><th>Speedup</th><th>KV cache</th><th>Loss gap (bpb)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>100M</td><td>4-layer (same loss)</td><td>1.8&times;</td><td>3.1&times; smaller</td><td>matched</td></tr>
+          <tr><td>100M</td><td>16-layer (best loss)</td><td>4.4&times;</td><td>6.3&times; smaller</td><td>+0.0228 (1.86%)</td></tr>
+          <tr><td>200M</td><td>24-layer (best loss)</td><td>4.6&times;</td><td>7.6&times; smaller</td><td>+0.0355 (3.15%)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Synthetic tasks -->
+  <section class="section">
+    <div class="container is-max-desktop">
+      <h2 class="title is-3">State tracking and recall</h2>
+      <div class="content">
+        <p>
+          PipeT's recurrence lets it track the state of permutation word problems (S<sub>3</sub>, S<sub>5</sub>),
+          where Transformer++ falls to chance, and it generalizes well beyond the training length (shaded).
+          It also keeps Transformer-level associative recall (MQAR), where a GRU baseline collapses.
+        </p>
+      </div>
+      <div class="columns">
+        <div class="column">
+          <figure class="figure">
+            <img src="static/images/parity_vs_state_max_s3.png" alt="S3 state tracking accuracy" loading="lazy">
+            <figcaption>S<sub>3</sub> state tracking.</figcaption>
+          </figure>
+        </div>
+        <div class="column">
+          <figure class="figure">
+            <img src="static/images/parity_vs_state_max_s5.png" alt="S5 state tracking accuracy" loading="lazy">
+            <figcaption>S<sub>5</sub> state tracking.</figcaption>
+          </figure>
+        </div>
+        <div class="column">
+          <figure class="figure">
+            <img src="static/images/mqar_L256_V128_max.png" alt="Multi-query associative recall accuracy" loading="lazy">
+            <figcaption>Multi-query associative recall.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- More results -->
+  <section class="hero is-small is-light">
+    <div class="hero-body">
+      <div class="container is-max-desktop">
+        <h2 class="title is-3">More results</h2>
+        <div id="results-carousel" class="carousel results-carousel">
+          <div class="item">
+            <img src="static/images/depth-scaling.png" alt="Depth-width sweep" loading="lazy">
+            <h2 class="subtitle has-text-centered">Architecture search favors shallow, wide PipeT models (L = 2&ndash;3).</h2>
+          </div>
+          <div class="item">
+            <img src="static/images/schedule-ablation.png" alt="Input and output layer placement sweep" loading="lazy">
+            <h2 class="subtitle has-text-centered">Sweep over input/output layer placement.</h2>
+          </div>
+          <div class="item">
+            <img src="static/images/recipe-law.png" alt="Scaling law along the recipe" loading="lazy">
+            <h2 class="subtitle has-text-centered">A power law fit on 4M&ndash;100M predicts the held-out 200M loss within 0.0002 bpb.</h2>
+          </div>
+          <div class="item">
+            <img src="static/images/stalling_comparison.png" alt="Stalling schedules" loading="lazy">
+            <h2 class="subtitle has-text-centered">Stalling: a gap &tau; = &ell;<sub>out</sub> &minus; &ell;<sub>in</sub> &gt; 1 trades speed for sequential depth.</h2>
+          </div>
+          <div class="item">
+            <img src="static/images/quality-latency-stall.png" alt="Quality vs latency with stalling" loading="lazy">
+            <h2 class="subtitle has-text-centered">At 30M, &tau; = 3&ndash;5 beats the best Transformer on loss, speed, and memory.</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Limitations -->
+  <section class="section">
+    <div class="container is-max-desktop">
+      <h2 class="title is-3">Limitations</h2>
+      <div class="content">
+        <ul>
+          <li>Training is slower than a standard Transformer (3&ndash;10&times; in our unoptimized implementation).</li>
+          <li>Evaluated only at 4M&ndash;200M parameters, on test loss; no downstream or free-running generation evaluation yet.</li>
+          <li>The loss gap to the best Transformer grows from 100M to 200M.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- BibTeX -->
+  <section class="section" id="BibTeX">
+    <div class="container is-max-desktop content">
+      <div class="bibtex-header">
+        <h2 class="title">BibTeX</h2>
+        <button class="copy-bibtex-btn" onclick="copyBibTeX()" title="Copy BibTeX to clipboard">
+          <i class="fas fa-copy"></i>
+          <span class="copy-text">Copy</span>
+        </button>
+      </div>
+      <!-- TODO: replace with final citation -->
+      <pre id="bibtex-code"><code>@article{pipet2026,
+  title={Pipelined Transformers: Autoregressive Generation with Increased Parallelism},
+  author={Anonymous},
+  year={2026}
+}</code></pre>
+    </div>
+  </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="columns is-centered">
+        <div class="column is-8">
+          <div class="content">
+            <p>
+              This page was built using the <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank">Academic Project Page Template</a> which was adopted from the <a href="https://nerfies.github.io" target="_blank">Nerfies</a> project page.
+              This website is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative Commons Attribution-ShareAlike 4.0 International License</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
