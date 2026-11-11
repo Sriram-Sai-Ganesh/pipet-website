@@ -103,8 +103,12 @@ body {
   padding: 4rem 1.5rem;
 }
 
+.title-hero .hero-body {
+  padding-bottom: 1.625rem;
+}
+
 .teaser .hero-body {
-  padding-top: 2rem;
+  padding-top: 0;
   padding-bottom: 4rem;
 }
 
@@ -203,6 +207,18 @@ body {
 .author-block {
   display: inline-block;
   margin-right: 0.5rem;
+}
+
+.publication-affiliation {
+  font-family: 'Inter', sans-serif;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.affiliation-logo {
+  height: 48px;
+  width: auto;
+  margin-bottom: 0.5rem;
 }
 
 .publication-banner img {
@@ -758,9 +774,24 @@ a:focus {
   text-align: center;
 }
 
-.figure img {
+.figure img,
+.figure video {
+  display: block;
   width: 100%;
   height: auto;
+  background: #fff;
+}
+
+/* SVG scales with width (1130/1600) above fixed-height playback controls (52px), plus 1px for rounding. */
+.pipet-animation {
+  container-type: inline-size;
+}
+
+.pipet-animation iframe {
+  display: block;
+  width: 100%;
+  height: calc(70.625cqw + 53px);
+  border: 0;
   background: #fff;
 }
 
