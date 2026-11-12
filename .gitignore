@@ -1,0 +1,5 @@
+dist-anon/
+.DS_Store
+.env
+__pycache__/
+paper_tex/
