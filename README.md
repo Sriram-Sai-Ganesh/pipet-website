@@ -16,7 +16,8 @@ markers; the text after `ANON:REPLACE` is what the anonymous site shows. Wrap an
 
 - Build: `ANON_CODE_URL=<anonymized code link> python3 scripts/build_anon.py` → `dist-anon/`.
   Only `index.html` and the files it references are copied, and the build fails if a name, affiliation or repo link survives.
-  Without `ANON_CODE_URL` the Code button is dropped.
+  Without `ANON_CODE_URL` the Code button is dropped. The architecture animation is written into its iframe's `srcdoc`,
+  because anonymous.4open.science will not show its own pages inside an iframe.
 - Deploy: `ANON_CODE_URL=… scripts/deploy_anon.sh origin` force-pushes the build as one history-free commit
   authored by "Anonymous" to the `anon` branch.
 - Host: on https://anonymous.4open.science, anonymize this repo with branch `anon`, enable the GitHub page option
