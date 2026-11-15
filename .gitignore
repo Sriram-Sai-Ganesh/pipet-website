@@ -3,3 +3,4 @@ dist-anon/
 .env
 __pycache__/
 paper_tex/
+CLAUDE.md
