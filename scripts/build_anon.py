@@ -13,10 +13,16 @@ Only index.html and the local files it references are copied (an allowlist),
 so stray files such as paper_tex/ or unused logos never reach the output.
 The build fails if any identifying string survives.
 
+Local pages shown in an iframe are written into the iframe's srcdoc attribute.
+anonymous.4open.science serves every page in a sandbox that takes away its origin,
+and only lets its pages appear in an iframe on a page from its own origin, so an
+iframe src would stay blank there.
+
 Usage: ANON_CODE_URL=https://anonymous.4open.science/r/... python3 scripts/build_anon.py
 Without ANON_CODE_URL the Code button is dropped from the anonymous page.
 """
 
+import html as html_lib
 import os
 import re
 import shutil
@@ -45,6 +51,7 @@ ANON_BLOCK = re.compile(
     r"<!-- ANON:START -->.*?<!-- ANON:REPLACE(.*?)ANON:END -->", re.DOTALL
 )
 LOCAL_REF = re.compile(r'(?:src|href|content)="((?:static|\./static)/[^"#?]+)"')
+IFRAME_SRC = re.compile(r'(<iframe\b[^>]*?\s)src="((?:static|\./static)/[^"#?]+\.html)"')
 
 
 def anonymize(html):
@@ -64,6 +71,16 @@ def anonymize(html):
     return re.sub(r"<!--.*?-->", "", html, flags=re.DOTALL)
 
 
+def inline_iframes(html):
+    """Replace each local iframe src with a srcdoc holding that page's HTML."""
+
+    def inline(m):
+        page = (ROOT / os.path.normpath(m.group(2))).read_text()
+        return f'{m.group(1)}srcdoc="{html_lib.escape(page)}"'
+
+    return IFRAME_SRC.sub(inline, html)
+
+
 def copy_with_refs(rel, seen):
     """Copy a local file, following references out of HTML files."""
     if rel in seen:
@@ -76,9 +93,11 @@ def copy_with_refs(rel, seen):
     dst.parent.mkdir(parents=True, exist_ok=True)
     if src.suffix == ".html":
         text = src.read_text()
+        if rel == "index.html":
+            text = inline_iframes(anonymize(text))
         for ref in LOCAL_REF.findall(text):
             copy_with_refs(os.path.normpath(ref), seen)
-        dst.write_text(anonymize(text) if rel == "index.html" else text)
+        dst.write_text(text)
     else:
         shutil.copy2(src, dst)
 
