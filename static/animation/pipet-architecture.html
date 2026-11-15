@@ -75,7 +75,7 @@
     color: var(--ink); background: #fff; border: 1px solid #cbd5e1; border-radius: 0.6vw; box-shadow: 0 0.3vw 1.5vw rgba(30, 41, 59, 0.18); }
   #card[hidden] { display: none; }
   #card.over-std { top: 7.6875vw; }
-  #card.over-pipet { top: 42.375vw; }
+  #card.over-pipet { top: 51.825vw; }
   #card .head { display: flex; align-items: center; gap: 0.9em; margin-bottom: 0.35em; padding-bottom: 0.3em; white-space: nowrap; border-bottom: 1px solid #e2e8f0; }
   #card .big { font-size: 1.7em; line-height: 1; }
   #card .pin { margin-left: auto; color: var(--muted); font-size: 0.85em; }
@@ -96,7 +96,7 @@
 </style>
 </head>
 <body>
-<svg id="stage" viewBox="0 0 1600 1130" xmlns="http://www.w3.org/2000/svg" tabindex="0" role="group"
+<svg id="stage" viewBox="0 0 1600 1432.4" xmlns="http://www.w3.org/2000/svg" tabindex="0" role="group"
   aria-label="Hidden states of both models. Use the arrow keys to inspect a state and Escape to clear it.">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
@@ -106,7 +106,7 @@
       <path d="M0,0 L10,5 L0,10 z" fill="#1e293b" />
     </marker>
   </defs>
-  <rect width="1600" height="1130" fill="#ffffff" />
+  <rect width="1600" height="1432.4" fill="#ffffff" />
   <g id="scaffold"></g>
   <g id="dyn"></g>
   <g id="inspect"></g>
@@ -135,7 +135,7 @@
 const L = 6, LIN = 2, LOUT = 3, TMAX = 13;
 const WORDS = ["the", "cat", "sat", "on", "the", "mat", "and", "then", "it", "fell", "asleep"];
 const DURATION = 20;
-const X0 = 150, DX = 97, DY = 54, R = 21;
+const X0 = 150, DX = 97, DY = 75.6, R = 21;
 const col = (t) => X0 + t * DX;
 // Each panel is L + 1 rows of height DY. What sits below a panel (output words, the axis, the next panel)
 // keeps its distance from that panel's bottom edge. HEIGHT must match the SVG viewBox, and index.css sizes the iframe from it.
