@@ -54,6 +54,14 @@
   #hint { flex: none; font-size: 13px; color: var(--muted); }
   @media (max-width: 640px) { #hint { display: none; } }
 
+  /* Column alignment switch: columns are timesteps or token streams. */
+  #align { flex: none; display: flex; padding: 2px; border-radius: 18px; background: #e2e8f0; }
+  #align button { height: 32px; padding: 0 12px; border: 0; border-radius: 16px; background: transparent; color: var(--muted);
+    font: 600 13px Inter, -apple-system, "Segoe UI", sans-serif; cursor: pointer; }
+  #align button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(30, 41, 59, 0.2); }
+  #align button:focus-visible { outline: 2px solid var(--clock); outline-offset: 1px; }
+  @media (max-width: 420px) { .controls { gap: 8px; padding: 0 8px; } #align button { padding: 0 8px; } }
+
   /* Inspector: dims the animation and redraws the selected state's neighbourhood on top. */
   #stage:focus { outline: none; }
   #stage:focus-visible { outline: 2px solid var(--clock); outline-offset: -2px; }
@@ -114,6 +122,10 @@
     <input id="slider" type="range" min="0" step="0.01" value="0" aria-label="Animation position" />
   </div>
   <div id="readout" aria-hidden="true">t = 0</div>
+  <div id="align" role="group" aria-label="Columns show">
+    <button type="button" aria-pressed="true" title="Each column is one timestep">Time</button>
+    <button type="button" aria-pressed="false" title="Each column is one token's residual stream">Stream</button>
+  </div>
   <div id="hint">Hover a state or word to inspect it · click to pin</div>
 </div>
 <script>
@@ -125,10 +137,23 @@ const WORDS = ["the", "cat", "sat", "on", "the", "mat", "and", "then", "it", "fe
 const DURATION = 20;
 const X0 = 150, DX = 97, DY = 54, R = 21;
 const col = (t) => X0 + t * DX;
-const rowS = (l) => 474 - l * DY;
-const rowP = (l) => 1029 - l * DY;
+// Each panel is L + 1 rows of height DY. What sits below a panel (output words, the axis, the next panel)
+// keeps its distance from that panel's bottom edge. HEIGHT must match the SVG viewBox, and index.css sizes the iframe from it.
+const STD_TOP = 123, STD_BOTTOM = STD_TOP + (L + 1) * DY, PIPET_TOP = STD_BOTTOM + 177, PIPET_BOTTOM = PIPET_TOP + (L + 1) * DY;
+const HEIGHT = PIPET_BOTTOM + 74;
+const rowS = (l) => STD_BOTTOM - DY / 2 - l * DY;
+const rowP = (l) => PIPET_BOTTOM - DY / 2 - l * DY;
 const BAND_L = 115, BAND_R = 1490;
-const wordsY = { std: 537, pipet: 1092 };
+const wordsY = { std: STD_BOTTOM + 36, pipet: PIPET_BOTTOM + 36 };
+
+// Two alignments of the same graph: columns are timesteps (h_i^l sits at the time t it is computed)
+// or streams (h_i^l sits above position i). Stream columns start further right to leave room for [BOS].
+const SX0 = X0 + 45, SDX = (col(TMAX) - SX0) / TMAX;
+const scol = (i) => SX0 + i * SDX;
+const LAYOUTS = [
+  { stream: false, pipet: (i, l) => [col(i + l), rowP(l)], std: (k, l) => [col(7 * k + l), rowS(l)] },
+  { stream: true, pipet: (i, l) => [scol(i), rowP(l)], std: (k, l) => [scol(k), rowS(l)] },
+];
 
 // Timeline (seconds). Each timestep first shows attention reads, then the layer updates (from GROW on).
 const T_INTRO = 0.4, D = 1.25, GROW = 0.5, T_FADE = 19.55;
@@ -155,6 +180,32 @@ const dyn = document.getElementById("dyn");
 const captionLayer = document.getElementById("captions");
 const updaters = [];
 
+// Everything that moves between alignments is a spot: at[0] is its place when columns are timesteps,
+// at[1] when they are streams. place(b) puts every spot at the blend b between them (0 = timesteps, 1 = streams),
+// and moved says whether this frame's blend differs from the last one.
+const spots = [];
+function spot(f, props = {}) {
+  const at = LAYOUTS.map(f), s = Object.assign(props, { at, x: at[0][0], y: at[0][1] });
+  spots.push(s);
+  return s;
+}
+// A path whose corners are given separately for each alignment, with the same number of corners in both.
+const route = (timePts, streamPts) => timePts.map((p, k) => spot((lay) => (lay.stream ? streamPts[k] : p)));
+const lerp = (p, q, b) => p + (q - p) * b;
+let align = 0, alignTo = 0, blend = NaN, moved = true;
+function place(b) {
+  moved = b !== blend;
+  blend = b;
+  if (!moved) return;
+  for (const s of spots) {
+    s.x = lerp(s.at[0][0], s.at[1][0], b);
+    s.y = lerp(s.at[0][1], s.at[1][1], b);
+  }
+}
+const colX = (c) => lerp(col(c), scol(c), blend);
+// Text that differs between alignments fades out over the first half of a switch and its replacement in over the second.
+const timeText = () => Math.max(0, 1 - 2 * blend), streamText = () => Math.max(0, 2 * blend - 1);
+
 // ---------- Static scaffold ----------
 function band(row, lo, hi, fill) {
   const y0 = row(hi) - DY / 2, y1 = row(lo) + DY / 2;
@@ -167,12 +218,37 @@ band(rowP, L, L, "var(--finalized)");
 band(rowS, 0, L - 1, "var(--active)");
 band(rowS, L, L, "var(--finalized)");
 
-const colHighlight = el("rect", { x: 0, y: rowS(L) - DY / 2, width: 84, height: rowP(0) - rowS(L) + DY, fill: "var(--clock)", opacity: 0 }, scaffold);
-for (let t = 0; t <= TMAX; t++) {
+// Highlight of the states computed at one timestep: a column when columns are timesteps; when they are
+// streams, a diagonal band in PipeT (h_i^l with i + l = t) and the single state being computed in Standard.
+// Clipped to the bands so the diagonal stays off the layer labels.
+el("rect", { x: BAND_L, y: 0, width: BAND_R - BAND_L, height: HEIGHT }, el("clipPath", { id: "hl-clip" }, document.querySelector("defs")));
+// HW is the half width of a column highlight. The diagonal band's half width is set so that, measured square
+// to its slope, it is 60 units thick, a little more than a state circle; it stays clear of the next diagonal (SDX away).
+const HW = 42, HW_DIAG = 30 * Math.hypot(DY, SDX) / DY;
+const HL_MID = STD_BOTTOM + 129; // where the Standard highlight hands over to PipeT's
+const hlStd = el("polygon", { fill: "var(--clock)", opacity: 0, "clip-path": "url(#hl-clip)" }, scaffold);
+const hlPipet = el("polygon", { fill: "var(--clock)", opacity: 0, "clip-path": "url(#hl-clip)" }, scaffold);
+const box = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+const blendPts = (p, q) => p.map(([x, y], k) => `${lerp(x, q[k][0], blend)},${lerp(y, q[k][1], blend)}`).join(" ");
+function highlight(t) {
+  for (const h of [hlStd, hlPipet]) h.setAttribute("opacity", t >= 0 ? 0.08 : 0);
+  if (t < 0) return;
+  const k = Math.floor(t / 7), sx = scol(k), sy = rowS(t - 7 * k);
+  hlStd.setAttribute("points", blendPts(box(col(t) - HW, rowS(L) - DY / 2, col(t) + HW, HL_MID), box(sx - HW, sy - DY / 2, sx + HW, sy + DY / 2)));
+  const top = rowP(L) - DY / 2, bottom = rowP(0) + DY / 2, xt = scol(t) - (L + 0.5) * SDX, xb = scol(t) + 0.5 * SDX;
+  hlPipet.setAttribute("points", blendPts(box(col(t) - HW, HL_MID, col(t) + HW, bottom),
+    [[xt - HW_DIAG, top], [xt + HW_DIAG, top], [xb + HW_DIAG, bottom], [xb - HW_DIAG, bottom]]));
+}
+
+const columnLines = [];
+for (let c = 0; c <= TMAX; c++) {
   for (const row of [rowP, rowS]) {
-    el("line", { x1: col(t), y1: row(L) - DY / 2, x2: col(t), y2: row(0) + DY / 2, stroke: "#ffffff", "stroke-opacity": 0.6, "stroke-width": 1.5 }, scaffold);
+    columnLines.push(el("line", { y1: row(L) - DY / 2, y2: row(0) + DY / 2, stroke: "#ffffff", "stroke-opacity": 0.6, "stroke-width": 1.5 }, scaffold));
   }
 }
+updaters.push(() => {
+  if (moved) columnLines.forEach((ln, k) => { const x = colX(k >> 1); ln.setAttribute("x1", x); ln.setAttribute("x2", x); });
+});
 
 const ell = (sub) => `ℓ<tspan class="up" font-size="17" dx="-2" dy="6">${sub}</tspan>`;
 const layerLabel = (y, html) =>
@@ -184,16 +260,32 @@ layerLabel(rowP(L), "L");
 layerLabel(rowS(0), `<tspan class="up">0 = </tspan>${ell("in")}`);
 layerLabel(rowS(L), `L<tspan class="up"> = </tspan>${ell("out")}`);
 
-// Shared time axis between the panels
-const axisY = 572;
+// Shared axis between the panels: timesteps t, or stream positions i. The labels cross-fade between the two.
+const axisY = STD_BOTTOM + 71;
 el("line", { x1: BAND_L, y1: axisY, x2: BAND_R + 22, y2: axisY, stroke: "var(--ink)", "stroke-width": 1.5, "marker-end": "url(#arrow-axis)" }, scaffold);
-el("text", { x: BAND_R + 30, y: axisY + 6, "font-size": 17, fill: "var(--muted)", class: "sans" }, scaffold, "time");
-const tickLabels = [];
-for (let t = 0; t <= TMAX; t++) {
-  el("line", { x1: col(t), y1: axisY - 5, x2: col(t), y2: axisY + 5, stroke: "var(--ink)", "stroke-width": 1.5 }, scaffold);
-  tickLabels.push(el("text", { x: col(t), y: axisY + 30, "text-anchor": "middle", "font-size": 21, fill: "var(--ink)", class: "math" }, scaffold,
-    `t<tspan class="up"> = ${t}</tspan>`));
+const axisNames = ["time", "stream"].map((name) =>
+  el("text", { x: BAND_R + 30, y: axisY + 6, "font-size": 17, fill: "var(--muted)", class: "sans" }, scaffold, name));
+const ticks = [], tickLabels = [], streamLabels = [];
+for (let c = 0; c <= TMAX; c++) {
+  ticks.push(el("line", { y1: axisY - 5, y2: axisY + 5, stroke: "var(--ink)", "stroke-width": 1.5 }, scaffold));
+  const label = (v) => el("text", { y: axisY + 30, "text-anchor": "middle", "font-size": 21, fill: "var(--ink)", class: "math" }, scaffold,
+    `${v}<tspan class="up"> = ${c}</tspan>`);
+  tickLabels.push(label("t"));
+  streamLabels.push(label("i"));
 }
+updaters.push(() => {
+  if (!moved) return;
+  axisNames.forEach((e, k) => e.setAttribute("opacity", k ? streamText() : timeText()));
+  for (let c = 0; c <= TMAX; c++) {
+    const x = colX(c);
+    ticks[c].setAttribute("x1", x);
+    ticks[c].setAttribute("x2", x);
+    tickLabels[c].setAttribute("x", x);
+    tickLabels[c].setAttribute("opacity", timeText());
+    streamLabels[c].setAttribute("x", x);
+    streamLabels[c].setAttribute("opacity", streamText());
+  }
+});
 
 // Panel headers (with live token counters) and stage legends
 const counters = {};
@@ -233,25 +325,27 @@ const tokenLayer = el("g", {}, dyn);
 const nodeLayer = el("g", {}, dyn);
 const plusLayer = el("g", {}, dyn);
 
-// Current-timestep column highlight, spanning both models
+// Highlight of the states being computed at the current timestep, spanning both models
 updaters.push((T) => {
   const cur = T >= T_INTRO && T < T_END ? Math.floor((T - T_INTRO) / D) : -1;
-  colHighlight.setAttribute("opacity", cur >= 0 ? 0.08 : 0);
-  if (cur >= 0) colHighlight.setAttribute("x", col(cur) - 42);
+  highlight(cur);
   tickLabels.forEach((e, t) => {
     e.setAttribute("font-weight", t === cur ? 700 : 400);
     e.setAttribute("fill", t === cur ? "var(--clock)" : "var(--ink)");
   });
 });
 
-// Residual-stream edge into the node computed at timestep t
-function addEdge(xa, ya, xb, yb, t) {
-  const len = Math.hypot(xb - xa, yb - ya), ux = (xb - xa) / len, uy = (yb - ya) / len;
-  const sx = xa + ux * (R + 2), sy = ya + uy * (R + 2), ex = xb - ux * (R + 4), ey = yb - uy * (R + 4);
-  const line = el("line", { x1: sx, y1: sy, x2: sx, y2: sy, stroke: "#1e293b", "stroke-width": 1.7, "marker-end": "url(#arrow)", opacity: 0 }, edgeLayer);
+// Residual-stream edge from node a into node b, which is computed at timestep t
+function addEdge(a, b, t) {
+  const line = el("line", { stroke: "#1e293b", "stroke-width": 1.7, "marker-end": "url(#arrow)", opacity: 0 }, edgeLayer);
   updaters.push((T) => {
     const p = easeInOut(prog(T, grow(t), 0.35));
     line.setAttribute("opacity", p > 0 ? 1 : 0);
+    if (p === 0) return;
+    const len = Math.hypot(b.x - a.x, b.y - a.y), ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+    const sx = a.x + ux * (R + 2), sy = a.y + uy * (R + 2), ex = b.x - ux * (R + 4), ey = b.y - uy * (R + 4);
+    line.setAttribute("x1", sx);
+    line.setAttribute("y1", sy);
     line.setAttribute("x2", sx + (ex - sx) * p);
     line.setAttribute("y2", sy + (ey - sy) * p);
   });
@@ -262,7 +356,8 @@ const nodeLabel = (i, l) =>
   `<tspan x="-8" y="8" font-size="23">h</tspan>` +
   `<tspan class="up" x="4" y="-2" font-size="13">${l}</tspan>` +
   `<tspan class="up" x="4" y="13" font-size="${i >= 10 ? 11.5 : 13}">${i}</tspan>`;
-function addNode(x, y, i, l, t) {
+function addNode(model, i, l, t) {
+  const n = spot((lay) => lay[model](i, l), { kind: "state", i, l, t, readBy: [] });
   const g = el("g", { opacity: 0 }, nodeLayer);
   const ring = el("circle", { r: R + 5, fill: "none", stroke: "var(--token)", "stroke-width": 3, opacity: 0 }, g);
   const attnRing = el("circle", { r: R + 4, fill: "none", stroke: "var(--attn)", "stroke-width": 2.6, opacity: 0 }, g);
@@ -272,16 +367,24 @@ function addNode(x, y, i, l, t) {
   updaters.push((T) => {
     const p = prog(T, a, 0.2);
     g.setAttribute("opacity", p > 0 ? Math.min(1, p * 2) : 0);
-    g.setAttribute("transform", `translate(${x},${y}) scale(${p > 0 ? 0.35 + 0.65 * easeOutBack(p) : 0})`);
+    g.setAttribute("transform", `translate(${n.x},${n.y}) scale(${p > 0 ? 0.35 + 0.65 * easeOutBack(p) : 0})`);
   });
-  return { kind: "state", i, l, t, x, y, appear: a, ring, attnRing, readBy: [] };
+  return Object.assign(n, { appear: a, ring, attnRing });
 }
 
-// A dotted (or, for a stream's own previous state, solid) read from source s into target
-function readLine(s, target, parent, attrs) {
+// A dotted (or, for a stream's own previous state, solid) read from source s into target.
+// aim() points an existing read line at the current places of s and target.
+function aim(line, s, target) {
   const len = Math.hypot(target.x - s.x, target.y - s.y), ux = (target.x - s.x) / len, uy = (target.y - s.y) / len;
-  return el("line", { x1: s.x + ux * (s.r || R), y1: s.y + uy * (s.r || R), x2: target.x - ux * (R + 3), y2: target.y - uy * (R + 3),
-    stroke: "var(--attn)", ...attrs }, parent);
+  line.setAttribute("x1", s.x + ux * (s.r || R));
+  line.setAttribute("y1", s.y + uy * (s.r || R));
+  line.setAttribute("x2", target.x - ux * (R + 3));
+  line.setAttribute("y2", target.y - uy * (R + 3));
+}
+function readLine(s, target, parent, attrs) {
+  const line = el("line", { stroke: "var(--attn)", ...attrs }, parent);
+  aim(line, s, target);
+  return line;
 }
 
 // Attention at timestep t: dotted reads from each source state into the update that computes target.
@@ -301,58 +404,80 @@ function addAttention(t, target, sources) {
   attnLevels.get(target).push((T) => prog(T, grow(t) + 0.3, 0.1) * (1 - prog(T, b, 0.25)));
   updaters.push((T) => {
     const o = level(T);
-    lines.forEach((ln, k) => ln.setAttribute("opacity", o * prog(T, a + k * 0.025, 0.2)));
-    ghost.setAttribute("opacity", o * (1 - prog(T, grow(t) + 0.3, 0.1)));
+    lines.forEach((ln, k) => {
+      const op = o * prog(T, a + k * 0.025, 0.2);
+      ln.setAttribute("opacity", op);
+      if (op > 0) aim(ln, sources[k], target);
+    });
+    const go = o * (1 - prog(T, grow(t) + 0.3, 0.1));
+    ghost.setAttribute("opacity", go);
+    if (go > 0) { ghost.setAttribute("cx", target.x); ghost.setAttribute("cy", target.y); }
   });
 }
 
-// Orange token path along points, drawn from time a over dur; optional ⊕ at plusAt
-function addTokenPath(points, a, dur, plusAt) {
-  const segs = [];
-  for (let k = 1; k < points.length; k++) segs.push(Math.hypot(points[k][0] - points[k - 1][0], points[k][1] - points[k - 1][1]));
-  const total = segs.reduce((x, y) => x + y, 0);
-  const path = el("polyline", { points: points.map((q) => q.join(",")).join(" "), fill: "none", stroke: "var(--token)", "stroke-width": 2.8,
-    "stroke-dasharray": total, "stroke-dashoffset": total, "stroke-linejoin": "round", opacity: 0 }, tokenLayer);
-  const [lx, ly] = points[points.length - 1], [qx, qy] = points[points.length - 2];
-  const ang = Math.atan2(ly - qy, lx - qx) * 180 / Math.PI;
-  const head = el("path", { d: "M-8,-5.5 L2,0 L-8,5.5 z", fill: "var(--token)", transform: `translate(${lx},${ly}) rotate(${ang})`, opacity: 0 }, tokenLayer);
+// Orange token path through the spots pts, drawn from time a over dur; optional ⊕ at the spot plusAt
+function addTokenPath(pts, a, dur, plusAt) {
+  const path = el("polyline", { fill: "none", stroke: "var(--token)", "stroke-width": 2.8, "stroke-linejoin": "round", opacity: 0 }, tokenLayer);
+  const head = el("path", { d: "M-8,-5.5 L2,0 L-8,5.5 z", fill: "var(--token)", opacity: 0 }, tokenLayer);
   let plus = null, plusNode = null;
   if (plusAt) {
-    plus = el("g", { transform: `translate(${plusAt[0]},${plusAt[1]})`, opacity: 0 }, plusLayer);
+    plus = el("g", { opacity: 0 }, plusLayer);
     el("circle", { r: 9, fill: "#ffffff", stroke: "#1e293b", "stroke-width": 1.5 }, plus);
     el("path", { d: "M-5.5,0 H5.5 M0,-5.5 V5.5", stroke: "#1e293b", "stroke-width": 1.5 }, plus);
-    plusNode = { kind: "plus", x: plusAt[0], y: plusAt[1], r: 9, appear: a + 0.8 * dur, points, readBy: [],
-      attnRing: el("circle", { r: 13, fill: "none", stroke: "var(--attn)", "stroke-width": 2.6, opacity: 0 }, plus) };
+    plusNode = Object.assign(plusAt, { kind: "plus", r: 9, appear: a + 0.8 * dur, points: pts, readBy: [],
+      attnRing: el("circle", { r: 13, fill: "none", stroke: "var(--attn)", "stroke-width": 2.6, opacity: 0 }, plus) });
   }
   updaters.push((T) => {
     const p = easeInOut(prog(T, a, dur));
     path.setAttribute("opacity", p > 0 ? 1 : 0);
-    path.setAttribute("stroke-dashoffset", total * (1 - p));
     head.setAttribute("opacity", p > 0.92 ? 1 : 0);
-    if (plus) plus.setAttribute("opacity", prog(T, a + 0.8 * dur, 0.1));
+    if (plus) {
+      plus.setAttribute("opacity", prog(T, a + 0.8 * dur, 0.1));
+      plus.setAttribute("transform", `translate(${plusAt.x},${plusAt.y})`);
+    }
+    if (p === 0) return;
+    let total = 0;
+    for (let k = 1; k < pts.length; k++) total += Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y);
+    path.setAttribute("points", pts.map((q) => `${q.x},${q.y}`).join(" "));
+    path.setAttribute("stroke-dasharray", total);
+    path.setAttribute("stroke-dashoffset", total * (1 - p));
+    const [q, r] = pts.slice(-2);
+    head.setAttribute("transform", `translate(${r.x},${r.y}) rotate(${Math.atan2(r.y - q.y, r.x - q.x) * 180 / Math.PI})`);
   });
   return plusNode;
 }
 
-function addLabel(x, y, html, a) {
-  const t = el("text", { x, y, "text-anchor": "middle", "font-size": 19, "font-weight": 600, fill: "var(--token)", class: "sans", opacity: 0 }, tokenLayer, html);
-  updaters.push((T) => t.setAttribute("opacity", prog(T, a, 0.15)));
+function addLabel(at, html, a) {
+  const t = el("text", { "text-anchor": "middle", "font-size": 19, "font-weight": 600, fill: "var(--token)", class: "sans", opacity: 0 }, tokenLayer, html);
+  updaters.push((T) => {
+    t.setAttribute("opacity", prog(T, a, 0.15));
+    t.setAttribute("x", at.x);
+    t.setAttribute("y", at.y);
+  });
 }
 
-// A predicted token: ring its source node, then drop the word into the output row under timestep t
+// A predicted token: ring its source node, then drop the word into the output row under that node's column
 const emitted = { pipet: [], std: [] };
 function emit(key, src, t, word) {
   const a = stepStart(t) + 1.08;
-  const w = el("text", { x: col(t), y: wordsY[key] + 8, "text-anchor": "middle", "font-size": 25, "font-weight": 600, fill: "var(--token)", class: "sans", opacity: 0 }, tokenLayer, word);
+  const w = spot((lay) => [lay[key](src.i, src.l)[0], wordsY[key]], { kind: "word", model: key, j: emitted[key].length + 1, t, appear: a, text: word, src });
+  const txt = el("text", { y: wordsY[key] + 8, "text-anchor": "middle", "font-size": 25, "font-weight": 600, fill: "var(--token)", class: "sans", opacity: 0 }, tokenLayer, word);
   updaters.push((T) => {
     const p = prog(T, a, 0.2);
-    w.setAttribute("opacity", p);
-    w.setAttribute("transform", `translate(0,${(1 - easeInOut(p)) * -14})`);
+    txt.setAttribute("opacity", p);
+    txt.setAttribute("x", w.x);
+    txt.setAttribute("transform", `translate(0,${(1 - easeInOut(p)) * -14})`);
     const on = prog(T, grow(t) + 0.3, 0.1), off = prog(T, stepStart(t) + D + 0.1, 0.3);
     src.ring.setAttribute("opacity", on * (1 - off));
   });
-  emitted[key].push({ kind: "word", model: key, j: emitted[key].length + 1, x: col(t), y: wordsY[key], t, appear: a, text: word, src });
+  emitted[key].push(w);
 }
+
+// The ⊕ where token x_i joins stream i: a fraction f of the way along its residual edge from layer l to l + 1
+const onEdge = (model, i, l, f) => (lay) => {
+  const [x0, y0] = lay[model](i, l), [x1, y1] = lay[model](i, l + 1);
+  return [x0 + f * (x1 - x0), y0 + f * (y1 - y0)];
+};
 
 // ----- PipeT -----
 const P = {};
@@ -360,24 +485,28 @@ for (let i = 0; i <= TMAX; i++) {
   for (let l = 0; l <= L; l++) {
     const t = i + l;
     if (t > TMAX) continue;
-    P[`${i},${l}`] = addNode(col(t), rowP(l), i, l, t);
-    if (l > 0) addEdge(col(t - 1), rowP(l - 1), col(t), rowP(l), t);
+    P[`${i},${l}`] = addNode("pipet", i, l, t);
+    if (l > 0) addEdge(P[`${i},${l - 1}`], P[`${i},${l}`], t);
   }
 }
-// x_j enters stream j at l_in, on the edge h_j^2 (t = j + 2) -> h_j^3 (t = j + 3)
-const PF = 0.55;
+// x_j enters stream j at l_in, on the edge h_j^2 (t = j + 2) -> h_j^3 (t = j + 3).
+// [BOS] comes in from the left of the first column; each later token leaves its source h_{j-1}^{l_out}
+// to the right, straight down to the ⊕ when columns are timesteps, or into the next column when they are streams.
+const PF = 0.55, BOS_X = SX0 - 52;
 const Pplus = {};
 for (let j = 0; j <= WORDS.length; j++) {
-  const t = j + LIN;
-  const px = col(t) + PF * DX, py = rowP(LIN) - PF * DY;
-  const a = stepStart(t) + 0.88;
+  const t = j + LIN, a = stepStart(t) + 0.88;
+  const plus = spot(onEdge("pipet", j, LIN, PF)), [[ptx, py], [psx]] = plus.at;
   if (j === 0) {
     const vx = col(1) + 10, top = rowP(4) + 4;
-    Pplus[j] = addTokenPath([[vx, top], [vx, py], [px - 10, py]], a, 0.25, [px, py]);
-    addLabel(vx, top - 10, "[BOS]", a);
+    Pplus[j] = addTokenPath(route([[vx, top], [vx, py], [ptx - 10, py]], [[BOS_X, top], [BOS_X, py], [psx - 10, py]]), a, 0.25, plus);
+    addLabel(spot((lay) => [lay.stream ? BOS_X : vx, top - 10]), "[BOS]", a);
   } else {
-    Pplus[j] = addTokenPath([[col(t) + R + 2, rowP(LOUT)], [px, rowP(LOUT)], [px, py - 10]], a, 0.25, [px, py]);
-    emit("pipet", P[`${j - 1},${LOUT}`], t, WORDS[j - 1]);
+    const src = P[`${j - 1},${LOUT}`], y = rowP(LOUT), [[stx], [ssx]] = src.at, mid = ssx + SDX / 2;
+    Pplus[j] = addTokenPath(route(
+      [[stx + R + 2, y], [ptx, y], [ptx, y], [ptx, py - 10]],
+      [[ssx + R + 2, y], [mid, y], [mid, py], [psx - 10, py]]), a, 0.25, plus);
+    emit("pipet", src, t, WORDS[j - 1]);
   }
 }
 
@@ -387,27 +516,29 @@ for (let k = 0; 7 * k <= TMAX; k++) {
   for (let l = 0; l <= L; l++) {
     const t = 7 * k + l;
     if (t > TMAX) continue;
-    S[`${k},${l}`] = addNode(col(t), rowS(l), k, l, t);
-    if (l > 0) addEdge(col(t - 1), rowS(l - 1), col(t), rowS(l), t);
+    S[`${k},${l}`] = addNode("std", k, l, t);
+    if (l > 0) addEdge(S[`${k},${l - 1}`], S[`${k},${l}`], t);
   }
 }
 const SF = 0.6;
-const sPlus = (k) => [col(7 * k) + SF * DX, rowS(0) - SF * DY];
 const Splus = {};
 {
-  const [px, py] = sPlus(0), vx = col(0) - 28, top = rowS(2) + 4, a = stepStart(0) + 0.88;
-  Splus[0] = addTokenPath([[vx, top], [vx, py], [px - 10, py]], a, 0.25, [px, py]);
-  addLabel(vx, top - 10, "[BOS]", a);
+  const plus = spot(onEdge("std", 0, 0, SF)), [[ptx, py], [psx]] = plus.at;
+  const vx = col(0) - 28, top = rowS(2) + 4, a = stepStart(0) + 0.88;
+  Splus[0] = addTokenPath(route([[vx, top], [vx, py], [ptx - 10, py]], [[BOS_X, top], [BOS_X, py], [psx - 10, py]]), a, 0.25, plus);
+  addLabel(spot((lay) => [lay.stream ? BOS_X : vx, top - 10]), "[BOS]", a);
 }
 for (let k = 1; 7 * k - 1 <= TMAX; k++) {
-  const t = 7 * k - 1, src = S[`${k - 1},${L}`], a = stepStart(t) + 0.85;
-  const sx = col(t) + R + 2, vx = col(t) + DX / 2;
+  const t = 7 * k - 1, src = S[`${k - 1},${L}`], a = stepStart(t) + 0.85, y = rowS(L);
+  const [[stx], [ssx]] = src.at, vt = stx + DX / 2, vs = ssx + SDX / 2;
   if (7 * k <= TMAX) {
-    const [px, py] = sPlus(k);
-    Splus[k] = addTokenPath([[sx, rowS(L)], [vx, rowS(L)], [vx, py], [px - 10, py]], a, 0.35, [px, py]);
+    const plus = spot(onEdge("std", k, 0, SF)), [[ptx, py], [psx]] = plus.at;
+    Splus[k] = addTokenPath(route(
+      [[stx + R + 2, y], [vt, y], [vt, py], [ptx - 10, py]],
+      [[ssx + R + 2, y], [vs, y], [vs, py], [psx - 10, py]]), a, 0.35, plus);
   } else {
     // The next stream would start after the visualized window.
-    addTokenPath([[sx, rowS(L)], [vx, rowS(L)], [vx, rowS(L - 2)]], a, 0.3, null);
+    addTokenPath(route([[stx + R + 2, y], [vt, y], [vt, rowS(L - 2)]], [[ssx + R + 2, y], [vs, y], [vs, rowS(L - 2)]]), a, 0.3, null);
   }
   emit("std", src, t, WORDS[k - 1]);
 }
@@ -487,27 +618,34 @@ for (const key of ["pipet", "std"]) {
   });
 }
 
-// Captions
+// Captions. A caption that holds only when columns are timesteps also gives the one to show when they are streams.
 const captions = [
-  [0, stepStart(2), "Two 6-layer models on the same clock: one timestep = one layer update"],
+  [0, stepStart(2), "Two 6-layer models on the same clock: one timestep = one layer update",
+    "Two 6-layer models: each column is one token's residual stream"],
   [stepStart(2), stepStart(5), "PipeT advances every stream at once, so a token comes out every timestep"],
   [stepStart(5), stepStart(8), "Dotted lines: PipeT's next-token update reads the newest state of every stream"],
   [stepStart(8), stepStart(13) + 1.08, "The standard Transformer reads one layer of earlier tokens, one stream at a time"],
   [stepStart(13) + 1.08, DURATION, "Same 14 timesteps: PipeT decodes 11 tokens, the standard Transformer 2"],
 ];
-captions.forEach(([s, e, html], k) => {
-  const c = el("text", { x: 800, y: 52, "text-anchor": "middle", "font-size": 30, "font-weight": 600, fill: "var(--ink)", class: "sans", opacity: 0 }, captionLayer, html);
+captions.forEach(([s, e, html, streamHtml], k) => {
+  const caption = (h) => el("text", { x: 800, y: 52, "text-anchor": "middle", "font-size": 30, "font-weight": 600, fill: "var(--ink)", class: "sans", opacity: 0 }, captionLayer, h);
+  const c = caption(html), cs = streamHtml && caption(streamHtml);
   updaters.push((T) => {
     const fin = k === 0 ? prog(T, 0.05, 0.3) : prog(T, s, 0.25);
     const fout = e >= DURATION ? prog(T, T_FADE, 0.35) : prog(T, e - 0.12, 0.12);
-    c.setAttribute("opacity", fin * (1 - fout));
+    const o = fin * (1 - fout);
+    c.setAttribute("opacity", cs ? o * timeText() : o);
+    if (cs) cs.setAttribute("opacity", o * streamText());
   });
 });
 
 // Dynamic layer fades out at the end so the loop restarts on the bare scaffold.
 updaters.push((T) => dyn.setAttribute("opacity", 1 - prog(T, T_FADE, 0.35)));
 
-function render(T) { for (const u of updaters) u(T); }
+function render(T) {
+  place(easeInOut(align));
+  for (const u of updaters) u(T);
+}
 window.render = render;
 window.DURATION = DURATION;
 
@@ -540,18 +678,41 @@ function draw() {
   drawInspect();
 }
 
+// One frame loop moves the playhead (while playing) and the alignment (while switching), so either can
+// change without the other: switching while paused slides the frozen frame, while playing it slides as it plays.
+const MORPH = 0.9; // seconds to switch alignment
+const advancing = () => playing && onScreen && !held;
+const morphing = () => align !== alignTo && onScreen;
+
 function tick(now) {
-  if (!playing || !onScreen || held) { running = false; last = null; return; }
-  if (last !== null) { T = (T + Math.min((now - last) / 1000, 0.1)) % DURATION; draw(); }
+  const adv = advancing(), mor = morphing();
+  if (!adv && !mor) { running = false; last = null; return; }
+  if (last !== null) {
+    const dt = Math.min((now - last) / 1000, 0.1);
+    if (adv) T = (T + dt) % DURATION;
+    if (mor) align = alignTo > align ? Math.min(alignTo, align + dt / MORPH) : Math.max(alignTo, align - dt / MORPH);
+    draw();
+  }
   last = now;
   requestAnimationFrame(tick);
 }
 
 function kick() {
-  if (running || !playing || !onScreen || held) return;
+  if (running || !(advancing() || morphing())) return;
   running = true;
   requestAnimationFrame(tick);
 }
+
+// Column alignment: 0 = timesteps, 1 = streams. Switching again mid-slide turns back from where it is.
+const alignButtons = [...document.querySelectorAll("#align button")];
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function setAlign(to, animate = true) {
+  alignTo = to;
+  alignButtons.forEach((b, k) => b.setAttribute("aria-pressed", k === to));
+  if (!animate || reduce || !onScreen) { align = to; draw(); }
+  kick();
+}
+alignButtons.forEach((b, k) => b.addEventListener("click", () => setAlign(k)));
 
 function setPlaying(on) {
   playing = on;
@@ -674,14 +835,13 @@ function pill(w, fill, stroke) {
 }
 
 function tokenPath(plus) {
-  el("polyline", { points: plus.points.map((q) => q.join(",")).join(" "), fill: "none", stroke: "var(--token)", "stroke-width": 2.8, "stroke-linejoin": "round" }, inspectLayer);
+  el("polyline", { points: plus.points.map((q) => `${q.x},${q.y}`).join(" "), fill: "none", stroke: "var(--token)", "stroke-width": 2.8, "stroke-linejoin": "round" }, inspectLayer);
 }
 
 function drawInspect() {
   inspectLayer.replaceChildren();
   if (!sel) return;
-  colHighlight.setAttribute("opacity", 0.08);
-  colHighlight.setAttribute("x", col(sel.t) - 42);
+  highlight(sel.t);
   tickLabels.forEach((e, t) => {
     e.setAttribute("font-weight", t === sel.t ? 700 : 400);
     e.setAttribute("fill", t === sel.t ? "var(--clock)" : "var(--ink)");
@@ -807,7 +967,10 @@ function fillCard() {
 }
 
 const params = new URLSearchParams(location.search);
-const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (params.get("align") === "stream") {
+  align = alignTo = 1;
+  alignButtons.forEach((b, k) => b.setAttribute("aria-pressed", k === 1));
+}
 if (params.has("record")) {
   document.documentElement.classList.add("record");
   render(0);
