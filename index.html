@@ -227,7 +227,8 @@
                   depend autoregressively on token <i>i</i> and all previous
                   tokens. This architecture decodes faster than a standard
                   Transformer, reduces KV cache size, and is formally more
-                  expressive. Although pretraining and prompt prefilling are
+                  expressive than both recurrent and transformer-based models.
+                  Although pretraining and prompt prefilling are
                   slower than in a standard Transformer, this tradeoff may be
                   worth it when generation is a bottleneck, as when generating
                   code or long reasoning traces during RL training or after
@@ -429,18 +430,20 @@
           <div class="content">
             <p>
               Like an RNN, PipeT's recurrence lets it track the state of
-              permutation word problems (S<sub>3</sub>, S<sub>5</sub>), where
-              Transformer++ falls to chance, and it generalizes well beyond the
-              training length (shaded). Unlike the RNN, it also keeps
+              permutation word problems (S<sub>3</sub>, S<sub>5</sub>). On
+              S<sub>5</sub>, Transformer++ and Mamba-2 fall to chance within 10
+              permutations, while PipeT tracks the state through the training
+              length (shaded) and beyond it. Unlike the RNN, it also keeps
               Transformer-level associative recall (MQAR), where the RNN
-              collapses.
+              collapses. Of the four models, PipeT is the only one that does
+              well on both tasks.
             </p>
           </div>
           <div class="columns">
             <div class="column">
               <figure class="figure">
                 <img
-                  src="static/images/parity_vs_state_max_s3.png"
+                  src="static/images/parity_vs_state_max_s3_extended_v3.png"
                   alt="S3 state tracking accuracy"
                   loading="lazy"
                 />
@@ -450,7 +453,7 @@
             <div class="column">
               <figure class="figure">
                 <img
-                  src="static/images/parity_vs_state_max_s5.png"
+                  src="static/images/parity_vs_state_max_s5_extended_v3.png"
                   alt="S5 state tracking accuracy"
                   loading="lazy"
                 />
@@ -460,7 +463,7 @@
             <div class="column">
               <figure class="figure">
                 <img
-                  src="static/images/mqar_L256_V128_max.png"
+                  src="static/images/recall_capacity_L256_V128_max_v3.png"
                   alt="Multi-query associative recall accuracy"
                   loading="lazy"
                 />
