@@ -1,0 +1,2749 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <meta
+      name="title"
+      content="Pipelined Transformers: Autoregressive Generation with Increased Parallelism"
+    />
+    <meta
+      name="description"
+      content="PipeT pipelines Transformer layers across token positions, decoding up to 4.5x faster with a 6-8x smaller KV cache while remaining autoregressive."
+    />
+    <meta
+      name="keywords"
+      content="Transformer, autoregressive decoding, pipelining, KV cache, language models, state tracking"
+    />
+    
+    <meta name="robots" content="noindex, nofollow" />
+    
+
+    <meta property="og:type" content="article" />
+    <meta
+      property="og:title"
+      content="Pipelined Transformers: Autoregressive Generation with Increased Parallelism"
+    />
+    <meta
+      property="og:description"
+      content="PipeT pipelines Transformer layers across token positions, decoding up to 4.5x faster with a 6-8x smaller KV cache while remaining autoregressive."
+    />
+    <meta property="og:image" content="static/images/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Pipelined Transformers" />
+    <meta name="twitter:image" content="static/images/og-image.png" />
+
+    <meta
+      name="citation_title"
+      content="Pipelined Transformers: Autoregressive Generation with Increased Parallelism"
+    />
+    
+    
+    <meta name="citation_publication_date" content="2026" />
+
+    <title>Pipelined Transformers (PipeT)</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐦</text></svg>"
+    />
+
+    <link rel="stylesheet" href="static/css/bulma.min.css" />
+    <link rel="stylesheet" href="static/css/index.css" />
+    <link rel="stylesheet" href="static/css/bulma-carousel.min.css" />
+    <link rel="stylesheet" href="static/css/fontawesome.all.min.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <script
+      defer
+      src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"
+    ></script>
+    <script defer src="static/js/fontawesome.all.min.js"></script>
+    <script defer src="static/js/bulma-carousel.min.js"></script>
+    <script defer src="static/js/index.js"></script>
+  </head>
+  <body>
+    <button
+      class="scroll-to-top"
+      onclick="scrollToTop()"
+      title="Scroll to top"
+      aria-label="Scroll to top"
+    >
+      <i class="fas fa-chevron-up"></i>
+    </button>
+
+    <main id="main-content">
+      
+      <section class="hero title-hero">
+        <div class="hero-body">
+          <div class="container is-max-desktop">
+            <div class="columns is-centered">
+              <div class="column has-text-centered">
+                <h1 class="title is-1 publication-title">
+                  Pipelined Transformers
+                </h1>
+                <h2 class="subtitle is-4">
+                  Autoregressive Generation with Increased Parallelism
+                </h2>
+                
+                <div class="is-size-5 publication-authors">
+                  <span class="author-block">Anonymous Authors</span>
+                </div>
+                
+                <div class="is-size-5 publication-authors">
+                  <span class="author-block">Under review</span>
+                </div>
+
+                <div class="column has-text-centered">
+                  <div class="publication-links">
+                    
+                    <span class="link-block">
+                      <a
+                        href="#"
+                        target="_blank"
+                        class="external-link button is-normal is-rounded is-dark"
+                      >
+                        <span class="icon"><i class="ai ai-arxiv"></i></span>
+                        <span>arXiv</span>
+                      </a>
+                    </span>
+                    <span class="link-block">
+                      <a
+                        href="#"
+                        target="_blank"
+                        class="external-link button is-normal is-rounded is-dark"
+                      >
+                        <span class="icon"
+                          ><i class="fas fa-file-pdf"></i
+                        ></span>
+                        <span>PDF</span>
+                      </a>
+                    </span>
+                    
+                    <span class="link-block" data-anon-code>
+                      <a
+                        href="https://anonymous.4open.science/r/pipet-release-1CB6/"
+                        target="_blank"
+                        class="external-link button is-normal is-rounded is-dark"
+                      >
+                        <span class="icon"><i class="fas fa-code"></i></span>
+                        <span>Code</span>
+                      </a>
+                    </span>
+                    
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <section class="hero teaser">
+        <div class="container is-max-desktop">
+          <div class="hero-body">
+            <figure class="figure">
+              <div class="pipet-animation">
+                <iframe
+                  srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+  &lt;head&gt;
+    &lt;meta charset=&quot;utf-8&quot; /&gt;
+    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot; /&gt;
+    &lt;title&gt;PipeT Architecture Animation&lt;/title&gt;
+    &lt;link
+      href=&quot;https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=STIX+Two+Text:ital,wght@0,400;0,700;1,400;1,700&amp;display=swap&quot;
+      rel=&quot;stylesheet&quot;
+    /&gt;
+    &lt;style&gt;
+      :root {
+        --ink: #1e293b;
+        --muted: #64748b;
+        --nascent: #f8d6b6;
+        --active: #fcf0a6;
+        --committed: #d5ebf6;
+        --finalized: #e3e4e7;
+        --token: #b4532a;
+        --attn: #1f8a8a;
+        --clock: #2563eb;
+        --reader: #7c3aed;
+        --known: #d3ecec;
+        --bg: #ffffff;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+      body {
+        position: relative;
+        -webkit-text-size-adjust: 100%;
+      }
+      svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .sans {
+        font-family:
+          Inter,
+          -apple-system,
+          &quot;Segoe UI&quot;,
+          sans-serif;
+      }
+      .math {
+        font-family: &quot;STIX Two Text&quot;, STIXGeneral, &quot;Times New Roman&quot;, serif;
+        font-style: italic;
+      }
+      .up {
+        font-style: normal;
+      }
+
+      /* Controls above the diagram, in two 48px rows (playback, then alignment and hint): fixed 96px tall.
+         index.css sizes the iframe from this, and the card&#x27;s top offsets add it. */
+      .controls {
+        height: 96px;
+        padding: 0 12px;
+        box-sizing: border-box;
+        font-family:
+          Inter,
+          -apple-system,
+          &quot;Segoe UI&quot;,
+          sans-serif;
+        color: var(--ink);
+      }
+      .controls .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 48px;
+      }
+      .record .controls {
+        display: none;
+      }
+      #toggle {
+        flex: none;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        cursor: pointer;
+        background: var(--ink);
+        color: #fff;
+        display: grid;
+        place-items: center;
+      }
+      #toggle:hover {
+        background: var(--clock);
+      }
+      #toggle svg {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
+      }
+      #toggle .play {
+        display: none;
+      }
+      #toggle.paused .play {
+        display: block;
+      }
+      #toggle.paused .pause {
+        display: none;
+      }
+      .scrub {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        height: 36px;
+      }
+      .tick {
+        position: absolute;
+        top: 11px;
+        width: 1px;
+        height: 14px;
+        background: #94a3b8;
+        pointer-events: none;
+      }
+      #slider {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 36px;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        -webkit-appearance: none;
+        appearance: none;
+        cursor: pointer;
+        touch-action: pan-y;
+      }
+      #slider::-webkit-slider-runnable-track {
+        height: 4px;
+        border-radius: 2px;
+        background: linear-gradient(
+          to right,
+          var(--clock) var(--p, 0%),
+          #cbd5e1 var(--p, 0%)
+        );
+      }
+      #slider::-moz-range-track {
+        height: 4px;
+        border-radius: 2px;
+        background: linear-gradient(
+          to right,
+          var(--clock) var(--p, 0%),
+          #cbd5e1 var(--p, 0%)
+        );
+      }
+      #slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        margin-top: -6px;
+        border: 0;
+        border-radius: 50%;
+        background: var(--clock);
+      }
+      #slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border: 0;
+        border-radius: 50%;
+        background: var(--clock);
+      }
+      #toggle:focus-visible,
+      #slider:focus-visible {
+        outline: 2px solid var(--clock);
+        outline-offset: 2px;
+      }
+      #readout {
+        flex: none;
+        width: 3.6em;
+        text-align: right;
+        font-size: 15px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      #hint {
+        flex: none;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      @media (max-width: 640px) {
+        #hint {
+          display: none;
+        }
+      }
+
+      /* Column alignment switch: columns are timesteps or token streams. */
+      #align-label {
+        flex: none;
+        margin-right: -4px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      #align {
+        flex: none;
+        display: flex;
+        padding: 2px;
+        border-radius: 18px;
+        background: #e2e8f0;
+      }
+      #align button {
+        height: 32px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 16px;
+        background: transparent;
+        color: var(--muted);
+        font:
+          600 13px Inter,
+          -apple-system,
+          &quot;Segoe UI&quot;,
+          sans-serif;
+        cursor: pointer;
+      }
+      #align button[aria-pressed=&quot;true&quot;] {
+        background: #fff;
+        color: var(--ink);
+        box-shadow: 0 1px 2px rgba(30, 41, 59, 0.2);
+      }
+      #align button:focus-visible {
+        outline: 2px solid var(--clock);
+        outline-offset: 1px;
+      }
+      @media (max-width: 420px) {
+        .controls {
+          padding: 0 8px;
+        }
+        .controls .row {
+          gap: 8px;
+        }
+        #align button {
+          padding: 0 8px;
+        }
+      }
+
+      /* Inspector: dims the animation and redraws the selected state&#x27;s neighbourhood on top. */
+      #stage:focus {
+        outline: none;
+      }
+      #stage:focus-visible {
+        outline: 2px solid var(--clock);
+        outline-offset: -2px;
+      }
+      #stage.inspecting #dyn &gt; g {
+        opacity: 0.2;
+      }
+      #stage.inspecting #dyn &gt; g.attn-layer {
+        opacity: 0;
+      }
+
+      /* The card covers the other model&#x27;s panel, so it never hides the lines it explains.
+     Sized in vw so it scales with the SVG (100vw = 1600 units). */
+      #card {
+        position: absolute;
+        left: 7.1875vw;
+        width: 85.9375vw;
+        height: 24vw;
+        box-sizing: border-box;
+        padding: 0.8vw 1.5vw;
+        overflow: hidden;
+        pointer-events: none;
+        font-family:
+          Inter,
+          -apple-system,
+          &quot;Segoe UI&quot;,
+          sans-serif;
+        font-size: 1.4vw;
+        line-height: 1.45;
+        color: var(--ink);
+        background: #fff;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.6vw;
+        box-shadow: 0 0.3vw 1.5vw rgba(30, 41, 59, 0.18);
+      }
+      #card[hidden] {
+        display: none;
+      }
+      #card.over-std {
+        top: calc(7.6875vw + 96px);
+      }
+      #card.over-pipet {
+        top: calc(51.825vw + 96px);
+      }
+      #card .head {
+        display: flex;
+        align-items: center;
+        gap: 0.9em;
+        margin-bottom: 0.35em;
+        padding-bottom: 0.3em;
+        white-space: nowrap;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      #card .big {
+        font-size: 1.7em;
+        line-height: 1;
+      }
+      #card .pin {
+        margin-left: auto;
+        color: var(--muted);
+        font-size: 0.85em;
+      }
+      #card dl {
+        display: grid;
+        grid-template-columns: 8.2em 1fr;
+        gap: 0.2em 0.8em;
+        margin: 0;
+      }
+      #card dt {
+        display: flex;
+        align-items: center;
+        gap: 0.45em;
+        color: var(--muted);
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      #card dd {
+        margin: 0;
+      }
+      #card .chip {
+        display: inline-block;
+        margin-right: 0.3em;
+        padding: 0 0.45em;
+        border-radius: 0.3em;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      #card .note {
+        color: var(--muted);
+      }
+      #card .h,
+      #card .x {
+        font-family: &quot;STIX Two Text&quot;, STIXGeneral, &quot;Times New Roman&quot;, serif;
+        font-style: italic;
+        font-size: 1.12em;
+        white-space: nowrap;
+      }
+      #card .ss {
+        display: inline-flex;
+        flex-direction: column;
+        vertical-align: middle;
+        margin-left: 0.06em;
+        font-size: 0.66em;
+        font-style: normal;
+        line-height: 1;
+      }
+      #card sub {
+        font-size: 0.68em;
+        font-style: normal;
+        line-height: 0;
+      }
+      .sw {
+        flex: none;
+        display: inline-block;
+        width: 1.5em;
+      }
+      .sw.query {
+        border-top: 0.16em solid var(--attn);
+      }
+      .sw.reads {
+        border-top: 0.16em dashed var(--attn);
+      }
+      .sw.knows {
+        height: 0.8em;
+        border-radius: 0.2em;
+        background: var(--known);
+      }
+      .sw.reader {
+        width: 0.8em;
+        height: 0.8em;
+        margin: 0 0.35em;
+        box-sizing: border-box;
+        border: 0.16em solid var(--reader);
+        border-radius: 50%;
+      }
+      .sw.token {
+        height: 0.8em;
+        border-radius: 0.2em;
+        background: #f8d9c8;
+      }
+    &lt;/style&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;div class=&quot;controls&quot;&gt;
+      &lt;div class=&quot;row&quot;&gt;
+      &lt;button id=&quot;toggle&quot; type=&quot;button&quot; aria-label=&quot;Pause animation&quot;&gt;
+        &lt;svg class=&quot;pause&quot; viewBox=&quot;0 0 14 14&quot; aria-hidden=&quot;true&quot;&gt;
+          &lt;path d=&quot;M2 1h4v12H2zM8 1h4v12H8z&quot; /&gt;
+        &lt;/svg&gt;
+        &lt;svg class=&quot;play&quot; viewBox=&quot;0 0 14 14&quot; aria-hidden=&quot;true&quot;&gt;
+          &lt;path d=&quot;M3 1l10 6-10 6z&quot; /&gt;
+        &lt;/svg&gt;
+      &lt;/button&gt;
+      &lt;div class=&quot;scrub&quot; id=&quot;scrub&quot;&gt;
+        &lt;input
+          id=&quot;slider&quot;
+          type=&quot;range&quot;
+          min=&quot;0&quot;
+          step=&quot;0.01&quot;
+          value=&quot;0&quot;
+          aria-label=&quot;Animation position&quot;
+        /&gt;
+      &lt;/div&gt;
+      &lt;div id=&quot;readout&quot; aria-hidden=&quot;true&quot;&gt;t = 0&lt;/div&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;row&quot;&gt;
+      &lt;div id=&quot;align-label&quot;&gt;Layout&lt;/div&gt;
+      &lt;div id=&quot;align&quot; role=&quot;group&quot; aria-labelledby=&quot;align-label&quot;&gt;
+        &lt;button
+          type=&quot;button&quot;
+          aria-pressed=&quot;true&quot;
+          title=&quot;Each column is one timestep&quot;
+        &gt;
+          Time
+        &lt;/button&gt;
+        &lt;button
+          type=&quot;button&quot;
+          aria-pressed=&quot;false&quot;
+          title=&quot;Each column is one token&#x27;s residual stream&quot;
+        &gt;
+          Residual
+        &lt;/button&gt;
+      &lt;/div&gt;
+      &lt;div id=&quot;hint&quot;&gt;Hover on a state or word to inspect it. Click to pin.&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;svg
+      id=&quot;stage&quot;
+      viewBox=&quot;0 0 1600 1432.4&quot;
+      xmlns=&quot;http://www.w3.org/2000/svg&quot;
+      tabindex=&quot;0&quot;
+      role=&quot;group&quot;
+      aria-label=&quot;Hidden states of both models. Use the arrow keys to inspect a state and Escape to clear it.&quot;
+    &gt;
+      &lt;defs&gt;
+        &lt;marker
+          id=&quot;arrow&quot;
+          viewBox=&quot;0 0 10 10&quot;
+          refX=&quot;9&quot;
+          refY=&quot;5&quot;
+          markerWidth=&quot;7&quot;
+          markerHeight=&quot;7&quot;
+          orient=&quot;auto&quot;
+        &gt;
+          &lt;path d=&quot;M0,0 L10,5 L0,10 z&quot; fill=&quot;#1e293b&quot; /&gt;
+        &lt;/marker&gt;
+        &lt;marker
+          id=&quot;arrow-axis&quot;
+          viewBox=&quot;0 0 10 10&quot;
+          refX=&quot;9&quot;
+          refY=&quot;5&quot;
+          markerWidth=&quot;8&quot;
+          markerHeight=&quot;8&quot;
+          orient=&quot;auto&quot;
+        &gt;
+          &lt;path d=&quot;M0,0 L10,5 L0,10 z&quot; fill=&quot;#1e293b&quot; /&gt;
+        &lt;/marker&gt;
+      &lt;/defs&gt;
+      &lt;rect width=&quot;1600&quot; height=&quot;1432.4&quot; fill=&quot;#ffffff&quot; /&gt;
+      &lt;g id=&quot;scaffold&quot;&gt;&lt;/g&gt;
+      &lt;g id=&quot;dyn&quot;&gt;&lt;/g&gt;
+      &lt;g id=&quot;inspect&quot;&gt;&lt;/g&gt;
+      &lt;g id=&quot;captions&quot;&gt;&lt;/g&gt;
+    &lt;/svg&gt;
+    &lt;div id=&quot;card&quot; role=&quot;status&quot; hidden&gt;&lt;/div&gt;
+    &lt;script&gt;
+      // Two 6-layer models on one clock; one timestep = the time of one layer update.
+      // PipeT (bottom): l_in = 2, l_out = 3, so h_i^l is computed at t = i + l and x_j is predicted at t = j + 2.
+      // Standard Transformer (top): stream k starts at t = 7k, so h_k^l is computed at t = 7k + l and x_k at t = 7k - 1.
+      const L = 6,
+        LIN = 2,
+        LOUT = 3,
+        TMAX = 13;
+      const WORDS = [
+        &quot;the&quot;,
+        &quot;cat&quot;,
+        &quot;sat&quot;,
+        &quot;on&quot;,
+        &quot;the&quot;,
+        &quot;mat&quot;,
+        &quot;and&quot;,
+        &quot;then&quot;,
+        &quot;it&quot;,
+        &quot;fell&quot;,
+        &quot;asleep&quot;,
+      ];
+      const DURATION = 20;
+      const X0 = 150,
+        DX = 97,
+        DY = 75.6,
+        R = 21;
+      const col = (t) =&gt; X0 + t * DX;
+      // Each panel is L + 1 rows of height DY. What sits below a panel (output words, the axis, the next panel)
+      // keeps its distance from that panel&#x27;s bottom edge. HEIGHT must match the SVG viewBox, and index.css sizes the iframe from it.
+      const STD_TOP = 123,
+        STD_BOTTOM = STD_TOP + (L + 1) * DY,
+        PIPET_TOP = STD_BOTTOM + 177,
+        PIPET_BOTTOM = PIPET_TOP + (L + 1) * DY;
+      const HEIGHT = PIPET_BOTTOM + 74;
+      const rowS = (l) =&gt; STD_BOTTOM - DY / 2 - l * DY;
+      const rowP = (l) =&gt; PIPET_BOTTOM - DY / 2 - l * DY;
+      const BAND_L = 115,
+        BAND_R = 1490;
+      const wordsY = { std: STD_BOTTOM + 36, pipet: PIPET_BOTTOM + 36 };
+
+      // Two alignments of the same graph: columns are timesteps (h_i^l sits at the time t it is computed)
+      // or streams (h_i^l sits above position i). Stream columns start further right to leave room for [BOS].
+      const SX0 = X0 + 45,
+        SDX = (col(TMAX) - SX0) / TMAX;
+      const scol = (i) =&gt; SX0 + i * SDX;
+      const LAYOUTS = [
+        {
+          stream: false,
+          pipet: (i, l) =&gt; [col(i + l), rowP(l)],
+          std: (k, l) =&gt; [col(7 * k + l), rowS(l)],
+        },
+        {
+          stream: true,
+          pipet: (i, l) =&gt; [scol(i), rowP(l)],
+          std: (k, l) =&gt; [scol(k), rowS(l)],
+        },
+      ];
+
+      // Timeline (seconds). Each timestep first shows attention reads, then the layer updates (from GROW on).
+      const T_INTRO = 0.4,
+        D = 1.25,
+        GROW = 0.5,
+        T_FADE = 19.55;
+      const stepStart = (t) =&gt; T_INTRO + t * D;
+      const grow = (t) =&gt; stepStart(t) + GROW;
+      const T_END = stepStart(TMAX + 1);
+
+      const NS = &quot;http://www.w3.org/2000/svg&quot;;
+      const clamp = (x) =&gt; Math.max(0, Math.min(1, x));
+      const prog = (T, a, dur) =&gt; clamp((T - a) / dur);
+      const easeInOut = (p) =&gt;
+        p &lt; 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+      const easeOutBack = (p) =&gt; {
+        const c = 1.7;
+        return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2);
+      };
+
+      function el(tag, attrs, parent, html) {
+        const e = document.createElementNS(NS, tag);
+        for (const k in attrs) e.setAttribute(k, attrs[k]);
+        if (html !== undefined) e.innerHTML = html;
+        if (parent) parent.appendChild(e);
+        return e;
+      }
+
+      const scaffold = document.getElementById(&quot;scaffold&quot;);
+      const dyn = document.getElementById(&quot;dyn&quot;);
+      const captionLayer = document.getElementById(&quot;captions&quot;);
+      const updaters = [];
+
+      // Everything that moves between alignments is a spot: at[0] is its place when columns are timesteps,
+      // at[1] when they are streams. place(b) puts every spot at the blend b between them (0 = timesteps, 1 = streams),
+      // and moved says whether this frame&#x27;s blend differs from the last one.
+      const spots = [];
+      function spot(f, props = {}) {
+        const at = LAYOUTS.map(f),
+          s = Object.assign(props, { at, x: at[0][0], y: at[0][1] });
+        spots.push(s);
+        return s;
+      }
+      // A path whose corners are given separately for each alignment, with the same number of corners in both.
+      const route = (timePts, streamPts) =&gt;
+        timePts.map((p, k) =&gt; spot((lay) =&gt; (lay.stream ? streamPts[k] : p)));
+      const lerp = (p, q, b) =&gt; p + (q - p) * b;
+      let align = 0,
+        alignTo = 0,
+        blend = NaN,
+        moved = true;
+      function place(b) {
+        moved = b !== blend;
+        blend = b;
+        if (!moved) return;
+        for (const s of spots) {
+          s.x = lerp(s.at[0][0], s.at[1][0], b);
+          s.y = lerp(s.at[0][1], s.at[1][1], b);
+        }
+      }
+      const colX = (c) =&gt; lerp(col(c), scol(c), blend);
+      // Text that differs between alignments fades out over the first half of a switch and its replacement in over the second.
+      const timeText = () =&gt; Math.max(0, 1 - 2 * blend),
+        streamText = () =&gt; Math.max(0, 2 * blend - 1);
+
+      // ---------- Static scaffold ----------
+      function band(row, lo, hi, fill) {
+        const y0 = row(hi) - DY / 2,
+          y1 = row(lo) + DY / 2;
+        el(
+          &quot;rect&quot;,
+          { x: BAND_L, y: y0, width: BAND_R - BAND_L, height: y1 - y0, fill },
+          scaffold,
+        );
+      }
+      band(rowP, 0, LIN, &quot;var(--nascent)&quot;);
+      band(rowP, LOUT, LOUT, &quot;var(--active)&quot;);
+      band(rowP, LOUT + 1, L - 1, &quot;var(--committed)&quot;);
+      band(rowP, L, L, &quot;var(--finalized)&quot;);
+      band(rowS, 0, L - 1, &quot;var(--active)&quot;);
+      band(rowS, L, L, &quot;var(--finalized)&quot;);
+
+      // Highlight of the states computed at one timestep: a column when columns are timesteps; when they are
+      // streams, a diagonal band in PipeT (h_i^l with i + l = t) and the single state being computed in Standard.
+      // Clipped to the bands so the diagonal stays off the layer labels.
+      el(
+        &quot;rect&quot;,
+        { x: BAND_L, y: 0, width: BAND_R - BAND_L, height: HEIGHT },
+        el(&quot;clipPath&quot;, { id: &quot;hl-clip&quot; }, document.querySelector(&quot;defs&quot;)),
+      );
+      // HW is the half width of a column highlight. The diagonal band&#x27;s half width is set so that, measured square
+      // to its slope, it is 60 units thick, a little more than a state circle; it stays clear of the next diagonal (SDX away).
+      const HW = 42,
+        HW_DIAG = (30 * Math.hypot(DY, SDX)) / DY;
+      const HL_MID = STD_BOTTOM + 129; // where the Standard highlight hands over to PipeT&#x27;s
+      const hlStd = el(
+        &quot;polygon&quot;,
+        { fill: &quot;var(--clock)&quot;, opacity: 0, &quot;clip-path&quot;: &quot;url(#hl-clip)&quot; },
+        scaffold,
+      );
+      const hlPipet = el(
+        &quot;polygon&quot;,
+        { fill: &quot;var(--clock)&quot;, opacity: 0, &quot;clip-path&quot;: &quot;url(#hl-clip)&quot; },
+        scaffold,
+      );
+      const box = (x0, y0, x1, y1) =&gt; [
+        [x0, y0],
+        [x1, y0],
+        [x1, y1],
+        [x0, y1],
+      ];
+      const blendPts = (p, q) =&gt;
+        p
+          .map(
+            ([x, y], k) =&gt;
+              `${lerp(x, q[k][0], blend)},${lerp(y, q[k][1], blend)}`,
+          )
+          .join(&quot; &quot;);
+      function highlight(t) {
+        for (const h of [hlStd, hlPipet])
+          h.setAttribute(&quot;opacity&quot;, t &gt;= 0 ? 0.08 : 0);
+        if (t &lt; 0) return;
+        const k = Math.floor(t / 7),
+          sx = scol(k),
+          sy = rowS(t - 7 * k);
+        hlStd.setAttribute(
+          &quot;points&quot;,
+          blendPts(
+            box(col(t) - HW, rowS(L) - DY / 2, col(t) + HW, HL_MID),
+            box(sx - HW, sy - DY / 2, sx + HW, sy + DY / 2),
+          ),
+        );
+        const top = rowP(L) - DY / 2,
+          bottom = rowP(0) + DY / 2,
+          xt = scol(t) - (L + 0.5) * SDX,
+          xb = scol(t) + 0.5 * SDX;
+        hlPipet.setAttribute(
+          &quot;points&quot;,
+          blendPts(box(col(t) - HW, HL_MID, col(t) + HW, bottom), [
+            [xt - HW_DIAG, top],
+            [xt + HW_DIAG, top],
+            [xb + HW_DIAG, bottom],
+            [xb - HW_DIAG, bottom],
+          ]),
+        );
+      }
+
+      const columnLines = [];
+      for (let c = 0; c &lt;= TMAX; c++) {
+        for (const row of [rowP, rowS]) {
+          columnLines.push(
+            el(
+              &quot;line&quot;,
+              {
+                y1: row(L) - DY / 2,
+                y2: row(0) + DY / 2,
+                stroke: &quot;#ffffff&quot;,
+                &quot;stroke-opacity&quot;: 0.6,
+                &quot;stroke-width&quot;: 1.5,
+              },
+              scaffold,
+            ),
+          );
+        }
+      }
+      updaters.push(() =&gt; {
+        if (moved)
+          columnLines.forEach((ln, k) =&gt; {
+            const x = colX(k &gt;&gt; 1);
+            ln.setAttribute(&quot;x1&quot;, x);
+            ln.setAttribute(&quot;x2&quot;, x);
+          });
+      });
+
+      const ell = (sub) =&gt;
+        `ℓ&lt;tspan class=&quot;up&quot; font-size=&quot;17&quot; dx=&quot;-2&quot; dy=&quot;6&quot;&gt;${sub}&lt;/tspan&gt;`;
+      const layerLabel = (y, html) =&gt;
+        el(
+          &quot;text&quot;,
+          {
+            x: 100,
+            y: y + 9,
+            &quot;text-anchor&quot;: &quot;end&quot;,
+            &quot;font-size&quot;: 27,
+            fill: &quot;var(--ink)&quot;,
+            class: &quot;math&quot;,
+          },
+          scaffold,
+          html,
+        );
+      layerLabel(rowP(0), &#x27;&lt;tspan class=&quot;up&quot;&gt;0&lt;/tspan&gt;&#x27;);
+      layerLabel(rowP(LIN), ell(&quot;in&quot;));
+      layerLabel(rowP(LOUT), ell(&quot;out&quot;));
+      layerLabel(rowP(L), &quot;L&quot;);
+      layerLabel(rowS(0), `&lt;tspan class=&quot;up&quot;&gt;0 = &lt;/tspan&gt;${ell(&quot;in&quot;)}`);
+      layerLabel(rowS(L), `L&lt;tspan class=&quot;up&quot;&gt; = &lt;/tspan&gt;${ell(&quot;out&quot;)}`);
+
+      // Shared axis between the panels: timesteps t, or stream positions i. The labels cross-fade between the two.
+      const axisY = STD_BOTTOM + 71;
+      el(
+        &quot;line&quot;,
+        {
+          x1: BAND_L,
+          y1: axisY,
+          x2: BAND_R + 22,
+          y2: axisY,
+          stroke: &quot;var(--ink)&quot;,
+          &quot;stroke-width&quot;: 1.5,
+          &quot;marker-end&quot;: &quot;url(#arrow-axis)&quot;,
+        },
+        scaffold,
+      );
+      const axisNames = [&quot;time&quot;, &quot;stream&quot;].map((name) =&gt;
+        el(
+          &quot;text&quot;,
+          {
+            x: BAND_R + 30,
+            y: axisY + 6,
+            &quot;font-size&quot;: 17,
+            fill: &quot;var(--muted)&quot;,
+            class: &quot;sans&quot;,
+          },
+          scaffold,
+          name,
+        ),
+      );
+      const ticks = [],
+        tickLabels = [],
+        streamLabels = [];
+      for (let c = 0; c &lt;= TMAX; c++) {
+        ticks.push(
+          el(
+            &quot;line&quot;,
+            {
+              y1: axisY - 5,
+              y2: axisY + 5,
+              stroke: &quot;var(--ink)&quot;,
+              &quot;stroke-width&quot;: 1.5,
+            },
+            scaffold,
+          ),
+        );
+        const label = (v) =&gt;
+          el(
+            &quot;text&quot;,
+            {
+              y: axisY + 30,
+              &quot;text-anchor&quot;: &quot;middle&quot;,
+              &quot;font-size&quot;: 21,
+              fill: &quot;var(--ink)&quot;,
+              class: &quot;math&quot;,
+            },
+            scaffold,
+            `${v}&lt;tspan class=&quot;up&quot;&gt; = ${c}&lt;/tspan&gt;`,
+          );
+        tickLabels.push(label(&quot;t&quot;));
+        streamLabels.push(label(&quot;i&quot;));
+      }
+      updaters.push(() =&gt; {
+        if (!moved) return;
+        axisNames.forEach((e, k) =&gt;
+          e.setAttribute(&quot;opacity&quot;, k ? streamText() : timeText()),
+        );
+        for (let c = 0; c &lt;= TMAX; c++) {
+          const x = colX(c);
+          ticks[c].setAttribute(&quot;x1&quot;, x);
+          ticks[c].setAttribute(&quot;x2&quot;, x);
+          tickLabels[c].setAttribute(&quot;x&quot;, x);
+          tickLabels[c].setAttribute(&quot;opacity&quot;, timeText());
+          streamLabels[c].setAttribute(&quot;x&quot;, x);
+          streamLabels[c].setAttribute(&quot;opacity&quot;, streamText());
+        }
+      });
+
+      // Panel headers (with live token counters) and stage legends
+      const counters = {};
+      function header(key, y, name, note, legend) {
+        const txt = el(
+          &quot;text&quot;,
+          { x: BAND_L, y, &quot;font-size&quot;: 26, fill: &quot;var(--ink)&quot;, class: &quot;sans&quot; },
+          scaffold,
+          `&lt;tspan font-weight=&quot;700&quot;&gt;${name}&lt;/tspan&gt;&lt;tspan fill=&quot;var(--muted)&quot; font-size=&quot;19&quot; dx=&quot;12&quot;&gt;${note}&lt;/tspan&gt;` +
+            `&lt;tspan fill=&quot;var(--token)&quot; font-weight=&quot;700&quot; dx=&quot;22&quot;&gt;&lt;/tspan&gt;`,
+        );
+        counters[key] = txt.lastChild;
+        let x = BAND_R;
+        for (const g of legend.slice().reverse()) {
+          const w = 50 + g.label.length * 10.5;
+          x -= w;
+          el(
+            &quot;rect&quot;,
+            { x, y: y - 26, width: w, height: 36, rx: 6, fill: g.fill },
+            scaffold,
+          );
+          if (g.emoji)
+            el(
+              &quot;text&quot;,
+              { x: x + 10, y: y - 1, &quot;font-size&quot;: 19 },
+              scaffold,
+              g.emoji,
+            );
+          else
+            el(
+              &quot;line&quot;,
+              {
+                x1: x + 9,
+                y1: y - 8,
+                x2: x + 31,
+                y2: y - 8,
+                stroke: &quot;var(--attn)&quot;,
+                &quot;stroke-width&quot;: 2.4,
+                &quot;stroke-dasharray&quot;: &quot;4 3&quot;,
+              },
+              scaffold,
+            );
+          el(
+            &quot;text&quot;,
+            {
+              x: x + 38,
+              y: y - 2,
+              &quot;font-size&quot;: 19,
+              &quot;font-weight&quot;: 500,
+              fill: &quot;var(--ink)&quot;,
+              class: &quot;sans&quot;,
+            },
+            scaffold,
+            g.label,
+          );
+          x -= 10;
+        }
+      }
+      const STAGES = {
+        nascent: { fill: &quot;var(--nascent)&quot;, emoji: &quot;🥚&quot;, label: &quot;Nascent&quot; },
+        active: { fill: &quot;var(--active)&quot;, emoji: &quot;🐤&quot;, label: &quot;Active&quot; },
+        committed: {
+          fill: &quot;var(--committed)&quot;,
+          emoji: &quot;🐦&quot;,
+          label: &quot;Committed&quot;,
+        },
+        finalized: {
+          fill: &quot;var(--finalized)&quot;,
+          emoji: &quot;🪦&quot;,
+          label: &quot;Finalized&quot;,
+        },
+        attention: { fill: &quot;#e6f3f3&quot;, label: &quot;Attention&quot; },
+      };
+      header(&quot;pipet&quot;, rowP(L) - DY / 2 - 18, &quot;PipeT&quot;, &quot;(ours)&quot;, [
+        STAGES.attention,
+        STAGES.nascent,
+        STAGES.active,
+        STAGES.committed,
+        STAGES.finalized,
+      ]);
+      header(&quot;std&quot;, rowS(L) - DY / 2 - 18, &quot;Standard Transformer&quot;, &quot;&quot;, [
+        STAGES.attention,
+        STAGES.active,
+        STAGES.finalized,
+      ]);
+      for (const key of [&quot;pipet&quot;, &quot;std&quot;]) {
+        el(
+          &quot;text&quot;,
+          {
+            x: 100,
+            y: wordsY[key] + 6,
+            &quot;text-anchor&quot;: &quot;end&quot;,
+            &quot;font-size&quot;: 17,
+            fill: &quot;var(--muted)&quot;,
+            class: &quot;sans&quot;,
+          },
+          scaffold,
+          &quot;output&quot;,
+        );
+      }
+
+      // ---------- Dynamic elements ----------
+      const edgeLayer = el(&quot;g&quot;, {}, dyn);
+      const attnLayer = el(&quot;g&quot;, { class: &quot;attn-layer&quot; }, dyn);
+      const tokenLayer = el(&quot;g&quot;, {}, dyn);
+      const nodeLayer = el(&quot;g&quot;, {}, dyn);
+      const plusLayer = el(&quot;g&quot;, {}, dyn);
+
+      // Highlight of the states being computed at the current timestep, spanning both models
+      updaters.push((T) =&gt; {
+        const cur =
+          T &gt;= T_INTRO &amp;&amp; T &lt; T_END ? Math.floor((T - T_INTRO) / D) : -1;
+        highlight(cur);
+        tickLabels.forEach((e, t) =&gt; {
+          e.setAttribute(&quot;font-weight&quot;, t === cur ? 700 : 400);
+          e.setAttribute(&quot;fill&quot;, t === cur ? &quot;var(--clock)&quot; : &quot;var(--ink)&quot;);
+        });
+      });
+
+      // Residual-stream edge from node a into node b, which is computed at timestep t
+      function addEdge(a, b, t) {
+        const line = el(
+          &quot;line&quot;,
+          {
+            stroke: &quot;#1e293b&quot;,
+            &quot;stroke-width&quot;: 1.7,
+            &quot;marker-end&quot;: &quot;url(#arrow)&quot;,
+            opacity: 0,
+          },
+          edgeLayer,
+        );
+        updaters.push((T) =&gt; {
+          const p = easeInOut(prog(T, grow(t), 0.35));
+          line.setAttribute(&quot;opacity&quot;, p &gt; 0 ? 1 : 0);
+          if (p === 0) return;
+          const len = Math.hypot(b.x - a.x, b.y - a.y),
+            ux = (b.x - a.x) / len,
+            uy = (b.y - a.y) / len;
+          const sx = a.x + ux * (R + 2),
+            sy = a.y + uy * (R + 2),
+            ex = b.x - ux * (R + 4),
+            ey = b.y - uy * (R + 4);
+          line.setAttribute(&quot;x1&quot;, sx);
+          line.setAttribute(&quot;y1&quot;, sy);
+          line.setAttribute(&quot;x2&quot;, sx + (ex - sx) * p);
+          line.setAttribute(&quot;y2&quot;, sy + (ey - sy) * p);
+        });
+      }
+
+      // Node h_i^l computed at timestep t
+      const nodeLabel = (i, l) =&gt;
+        `&lt;tspan x=&quot;-8&quot; y=&quot;8&quot; font-size=&quot;23&quot;&gt;h&lt;/tspan&gt;` +
+        `&lt;tspan class=&quot;up&quot; x=&quot;4&quot; y=&quot;-2&quot; font-size=&quot;13&quot;&gt;${l}&lt;/tspan&gt;` +
+        `&lt;tspan class=&quot;up&quot; x=&quot;4&quot; y=&quot;13&quot; font-size=&quot;${i &gt;= 10 ? 11.5 : 13}&quot;&gt;${i}&lt;/tspan&gt;`;
+      function addNode(model, i, l, t) {
+        const n = spot((lay) =&gt; lay[model](i, l), {
+          kind: &quot;state&quot;,
+          i,
+          l,
+          t,
+          readBy: [],
+        });
+        const g = el(&quot;g&quot;, { opacity: 0 }, nodeLayer);
+        const ring = el(
+          &quot;circle&quot;,
+          {
+            r: R + 5,
+            fill: &quot;none&quot;,
+            stroke: &quot;var(--token)&quot;,
+            &quot;stroke-width&quot;: 3,
+            opacity: 0,
+          },
+          g,
+        );
+        const attnRing = el(
+          &quot;circle&quot;,
+          {
+            r: R + 4,
+            fill: &quot;none&quot;,
+            stroke: &quot;var(--attn)&quot;,
+            &quot;stroke-width&quot;: 2.6,
+            opacity: 0,
+          },
+          g,
+        );
+        el(
+          &quot;circle&quot;,
+          { r: R, fill: &quot;#ffffff&quot;, stroke: &quot;#1e293b&quot;, &quot;stroke-width&quot;: 1.8 },
+          g,
+        );
+        el(&quot;text&quot;, { class: &quot;math&quot;, fill: &quot;#1e293b&quot; }, g, nodeLabel(i, l));
+        const a = grow(t) + 0.3;
+        updaters.push((T) =&gt; {
+          const p = prog(T, a, 0.2);
+          g.setAttribute(&quot;opacity&quot;, p &gt; 0 ? Math.min(1, p * 2) : 0);
+          g.setAttribute(
+            &quot;transform&quot;,
+            `translate(${n.x},${n.y}) scale(${p &gt; 0 ? 0.35 + 0.65 * easeOutBack(p) : 0})`,
+          );
+        });
+        return Object.assign(n, { appear: a, ring, attnRing });
+      }
+
+      // A dotted (or, for a stream&#x27;s own previous state, solid) read from source s into target.
+      // aim() points an existing read line at the current places of s and target.
+      function aim(line, s, target) {
+        const len = Math.hypot(target.x - s.x, target.y - s.y),
+          ux = (target.x - s.x) / len,
+          uy = (target.y - s.y) / len;
+        line.setAttribute(&quot;x1&quot;, s.x + ux * (s.r || R));
+        line.setAttribute(&quot;y1&quot;, s.y + uy * (s.r || R));
+        line.setAttribute(&quot;x2&quot;, target.x - ux * (R + 3));
+        line.setAttribute(&quot;y2&quot;, target.y - uy * (R + 3));
+      }
+      function readLine(s, target, parent, attrs) {
+        const line = el(&quot;line&quot;, { stroke: &quot;var(--attn)&quot;, ...attrs }, parent);
+        aim(line, s, target);
+        return line;
+      }
+
+      // Attention at timestep t: dotted reads from each source state into the update that computes target.
+      // Rings are accumulated per node so several timesteps&#x27; updaters can share one ring.
+      const attnLevels = new Map();
+      function addAttention(t, target, sources) {
+        const a = stepStart(t) + 0.05,
+          b = grow(t) + 0.4;
+        const ghost = el(
+          &quot;circle&quot;,
+          {
+            cx: target.x,
+            cy: target.y,
+            r: R + 1,
+            fill: &quot;#ffffff&quot;,
+            &quot;fill-opacity&quot;: 0.7,
+            stroke: &quot;var(--attn)&quot;,
+            &quot;stroke-width&quot;: 2.6,
+            &quot;stroke-dasharray&quot;: &quot;5 4&quot;,
+            opacity: 0,
+          },
+          attnLayer,
+        );
+        const lines = sources.map((s) =&gt;
+          readLine(s, target, attnLayer, {
+            &quot;stroke-width&quot;: 2.2,
+            &quot;stroke-dasharray&quot;: &quot;6 5&quot;,
+            opacity: 0,
+          }),
+        );
+        const level = (T) =&gt; prog(T, a, 0.3) * (1 - prog(T, b, 0.25));
+        for (const s of sources) {
+          if (!attnLevels.has(s)) attnLevels.set(s, []);
+          attnLevels.get(s).push(level);
+        }
+        if (!attnLevels.has(target)) attnLevels.set(target, []);
+        attnLevels
+          .get(target)
+          .push((T) =&gt; prog(T, grow(t) + 0.3, 0.1) * (1 - prog(T, b, 0.25)));
+        updaters.push((T) =&gt; {
+          const o = level(T);
+          lines.forEach((ln, k) =&gt; {
+            const op = o * prog(T, a + k * 0.025, 0.2);
+            ln.setAttribute(&quot;opacity&quot;, op);
+            if (op &gt; 0) aim(ln, sources[k], target);
+          });
+          const go = o * (1 - prog(T, grow(t) + 0.3, 0.1));
+          ghost.setAttribute(&quot;opacity&quot;, go);
+          if (go &gt; 0) {
+            ghost.setAttribute(&quot;cx&quot;, target.x);
+            ghost.setAttribute(&quot;cy&quot;, target.y);
+          }
+        });
+      }
+
+      // Orange token path through the spots pts, drawn from time a over dur; optional ⊕ at the spot plusAt
+      function addTokenPath(pts, a, dur, plusAt) {
+        const path = el(
+          &quot;polyline&quot;,
+          {
+            fill: &quot;none&quot;,
+            stroke: &quot;var(--token)&quot;,
+            &quot;stroke-width&quot;: 2.8,
+            &quot;stroke-linejoin&quot;: &quot;round&quot;,
+            opacity: 0,
+          },
+          tokenLayer,
+        );
+        const head = el(
+          &quot;path&quot;,
+          { d: &quot;M-8,-5.5 L2,0 L-8,5.5 z&quot;, fill: &quot;var(--token)&quot;, opacity: 0 },
+          tokenLayer,
+        );
+        let plus = null,
+          plusNode = null;
+        if (plusAt) {
+          plus = el(&quot;g&quot;, { opacity: 0 }, plusLayer);
+          el(
+            &quot;circle&quot;,
+            { r: 9, fill: &quot;#ffffff&quot;, stroke: &quot;#1e293b&quot;, &quot;stroke-width&quot;: 1.5 },
+            plus,
+          );
+          el(
+            &quot;path&quot;,
+            {
+              d: &quot;M-5.5,0 H5.5 M0,-5.5 V5.5&quot;,
+              stroke: &quot;#1e293b&quot;,
+              &quot;stroke-width&quot;: 1.5,
+            },
+            plus,
+          );
+          plusNode = Object.assign(plusAt, {
+            kind: &quot;plus&quot;,
+            r: 9,
+            appear: a + 0.8 * dur,
+            points: pts,
+            readBy: [],
+            attnRing: el(
+              &quot;circle&quot;,
+              {
+                r: 13,
+                fill: &quot;none&quot;,
+                stroke: &quot;var(--attn)&quot;,
+                &quot;stroke-width&quot;: 2.6,
+                opacity: 0,
+              },
+              plus,
+            ),
+          });
+        }
+        updaters.push((T) =&gt; {
+          const p = easeInOut(prog(T, a, dur));
+          path.setAttribute(&quot;opacity&quot;, p &gt; 0 ? 1 : 0);
+          head.setAttribute(&quot;opacity&quot;, p &gt; 0.92 ? 1 : 0);
+          if (plus) {
+            plus.setAttribute(&quot;opacity&quot;, prog(T, a + 0.8 * dur, 0.1));
+            plus.setAttribute(
+              &quot;transform&quot;,
+              `translate(${plusAt.x},${plusAt.y})`,
+            );
+          }
+          if (p === 0) return;
+          let total = 0;
+          for (let k = 1; k &lt; pts.length; k++)
+            total += Math.hypot(
+              pts[k].x - pts[k - 1].x,
+              pts[k].y - pts[k - 1].y,
+            );
+          path.setAttribute(
+            &quot;points&quot;,
+            pts.map((q) =&gt; `${q.x},${q.y}`).join(&quot; &quot;),
+          );
+          path.setAttribute(&quot;stroke-dasharray&quot;, total);
+          path.setAttribute(&quot;stroke-dashoffset&quot;, total * (1 - p));
+          const [q, r] = pts.slice(-2);
+          head.setAttribute(
+            &quot;transform&quot;,
+            `translate(${r.x},${r.y}) rotate(${(Math.atan2(r.y - q.y, r.x - q.x) * 180) / Math.PI})`,
+          );
+        });
+        return plusNode;
+      }
+
+      // A token&#x27;s word in a white tag box centred on (0, 0); the box is sized like the inspector&#x27;s pill.
+      function tag(word, size, parent) {
+        const g = el(&quot;g&quot;, { opacity: 0 }, parent);
+        const width = word.length * 0.56 * size + 0.72 * size,
+          height = 1.52 * size;
+        el(
+          &quot;rect&quot;,
+          {
+            x: -width / 2,
+            y: -height / 2,
+            width,
+            height,
+            rx: 0.28 * size,
+            fill: &quot;#fff&quot;,
+            stroke: &quot;var(--token)&quot;,
+            &quot;stroke-width&quot;: 1.5,
+          },
+          g,
+        );
+        el(
+          &quot;text&quot;,
+          {
+            y: 0.32 * size,
+            &quot;text-anchor&quot;: &quot;middle&quot;,
+            &quot;font-size&quot;: size,
+            &quot;font-weight&quot;: 600,
+            fill: &quot;var(--token)&quot;,
+            class: &quot;sans&quot;,
+          },
+          g,
+          word,
+        );
+        return g;
+      }
+
+      function addLabel(at, word, a) {
+        const t = tag(word, 19, tokenLayer);
+        updaters.push((T) =&gt; {
+          t.setAttribute(&quot;opacity&quot;, prog(T, a, 0.15));
+          t.setAttribute(&quot;transform&quot;, `translate(${at.x},${at.y})`);
+        });
+      }
+
+      // A predicted token: ring its source node, then drop the word into the output row under that node&#x27;s column
+      const emitted = { pipet: [], std: [] };
+      function emit(key, src, t, word) {
+        const a = stepStart(t) + 1.08;
+        const w = spot((lay) =&gt; [lay[key](src.i, src.l)[0], wordsY[key]], {
+          kind: &quot;word&quot;,
+          model: key,
+          j: emitted[key].length + 1,
+          t,
+          appear: a,
+          text: word,
+          src,
+        });
+        const txt = tag(word, 25, tokenLayer);
+        updaters.push((T) =&gt; {
+          const p = prog(T, a, 0.2);
+          txt.setAttribute(&quot;opacity&quot;, p);
+          txt.setAttribute(
+            &quot;transform&quot;,
+            `translate(${w.x},${wordsY[key] + (1 - easeInOut(p)) * -14})`,
+          );
+          const on = prog(T, grow(t) + 0.3, 0.1),
+            off = prog(T, stepStart(t) + D + 0.1, 0.3);
+          src.ring.setAttribute(&quot;opacity&quot;, on * (1 - off));
+        });
+        emitted[key].push(w);
+      }
+
+      // The ⊕ where token x_i joins stream i: a fraction f of the way along its residual edge from layer l to l + 1
+      const onEdge = (model, i, l, f) =&gt; (lay) =&gt; {
+        const [x0, y0] = lay[model](i, l),
+          [x1, y1] = lay[model](i, l + 1);
+        return [x0 + f * (x1 - x0), y0 + f * (y1 - y0)];
+      };
+
+      // ----- PipeT -----
+      const P = {};
+      for (let i = 0; i &lt;= TMAX; i++) {
+        for (let l = 0; l &lt;= L; l++) {
+          const t = i + l;
+          if (t &gt; TMAX) continue;
+          P[`${i},${l}`] = addNode(&quot;pipet&quot;, i, l, t);
+          if (l &gt; 0) addEdge(P[`${i},${l - 1}`], P[`${i},${l}`], t);
+        }
+      }
+      // x_j enters stream j at l_in, on the edge h_j^2 (t = j + 2) -&gt; h_j^3 (t = j + 3).
+      // [BOS] comes in from the left of the first column; each later token leaves its source h_{j-1}^{l_out}
+      // to the right, straight down to the ⊕ when columns are timesteps, or into the next column when they are streams.
+      const PF = 0.55,
+        BOS_X = SX0 - 52;
+      const Pplus = {};
+      for (let j = 0; j &lt;= WORDS.length; j++) {
+        const t = j + LIN,
+          a = stepStart(t) + 0.88;
+        const plus = spot(onEdge(&quot;pipet&quot;, j, LIN, PF)),
+          [[ptx, py], [psx]] = plus.at;
+        if (j === 0) {
+          const vx = col(1) + 10,
+            top = rowP(4) + 4;
+          Pplus[j] = addTokenPath(
+            route(
+              [
+                [vx, top],
+                [vx, py],
+                [ptx - 10, py],
+              ],
+              [
+                [BOS_X, top],
+                [BOS_X, py],
+                [psx - 10, py],
+              ],
+            ),
+            a,
+            0.25,
+            plus,
+          );
+          addLabel(
+            spot((lay) =&gt; [lay.stream ? BOS_X : vx, top - 22]),
+            &quot;[BOS]&quot;,
+            a,
+          );
+        } else {
+          const src = P[`${j - 1},${LOUT}`],
+            y = rowP(LOUT),
+            [[stx], [ssx]] = src.at,
+            mid = ssx + SDX / 2;
+          Pplus[j] = addTokenPath(
+            route(
+              [
+                [stx + R + 2, y],
+                [ptx, y],
+                [ptx, y],
+                [ptx, py - 10],
+              ],
+              [
+                [ssx + R + 2, y],
+                [mid, y],
+                [mid, py],
+                [psx - 10, py],
+              ],
+            ),
+            a,
+            0.25,
+            plus,
+          );
+          emit(&quot;pipet&quot;, src, t, WORDS[j - 1]);
+        }
+      }
+
+      // ----- Standard Transformer -----
+      const S = {};
+      for (let k = 0; 7 * k &lt;= TMAX; k++) {
+        for (let l = 0; l &lt;= L; l++) {
+          const t = 7 * k + l;
+          if (t &gt; TMAX) continue;
+          S[`${k},${l}`] = addNode(&quot;std&quot;, k, l, t);
+          if (l &gt; 0) addEdge(S[`${k},${l - 1}`], S[`${k},${l}`], t);
+        }
+      }
+      const SF = 0.6;
+      const Splus = {};
+      {
+        const plus = spot(onEdge(&quot;std&quot;, 0, 0, SF)),
+          [[ptx, py], [psx]] = plus.at;
+        const vx = col(0) - 28,
+          top = rowS(2) + 4,
+          a = stepStart(0) + 0.88;
+        Splus[0] = addTokenPath(
+          route(
+            [
+              [vx, top],
+              [vx, py],
+              [ptx - 10, py],
+            ],
+            [
+              [BOS_X, top],
+              [BOS_X, py],
+              [psx - 10, py],
+            ],
+          ),
+          a,
+          0.25,
+          plus,
+        );
+        addLabel(
+          spot((lay) =&gt; [lay.stream ? BOS_X : vx, top - 22]),
+          &quot;[BOS]&quot;,
+          a,
+        );
+      }
+      for (let k = 1; 7 * k - 1 &lt;= TMAX; k++) {
+        const t = 7 * k - 1,
+          src = S[`${k - 1},${L}`],
+          a = stepStart(t) + 0.85,
+          y = rowS(L);
+        const [[stx], [ssx]] = src.at,
+          vt = stx + DX / 2,
+          vs = ssx + SDX / 2;
+        if (7 * k &lt;= TMAX) {
+          const plus = spot(onEdge(&quot;std&quot;, k, 0, SF)),
+            [[ptx, py], [psx]] = plus.at;
+          Splus[k] = addTokenPath(
+            route(
+              [
+                [stx + R + 2, y],
+                [vt, y],
+                [vt, py],
+                [ptx - 10, py],
+              ],
+              [
+                [ssx + R + 2, y],
+                [vs, y],
+                [vs, py],
+                [psx - 10, py],
+              ],
+            ),
+            a,
+            0.35,
+            plus,
+          );
+        } else {
+          // The next stream would start after the visualized window.
+          addTokenPath(
+            route(
+              [
+                [stx + R + 2, y],
+                [vt, y],
+                [vt, rowS(L - 2)],
+              ],
+              [
+                [ssx + R + 2, y],
+                [vs, y],
+                [vs, rowS(L - 2)],
+              ],
+            ),
+            a,
+            0.3,
+            null,
+          );
+        }
+        emit(&quot;std&quot;, src, t, WORDS[k - 1]);
+      }
+
+      // ----- Attention graph -----
+      // reads(i, l) lists the [stream, layer] states read by the update that computes h_i^l.
+      const MODELS = {
+        pipet: {
+          name: &quot;PipeT&quot;,
+          other: &quot;std&quot;,
+          nodes: P,
+          plus: Pplus,
+          lin: LIN,
+          lout: LOUT,
+          time: (i, l) =&gt; i + l,
+          // The newest state of every existing stream; stream t is created only after this timestep&#x27;s updates.
+          reads: (i, l) =&gt; {
+            const t = i + l,
+              out = [];
+            for (let j = 0; j &lt; t; j++) out.push([j, Math.min(t - 1 - j, L)]);
+            return out;
+          },
+          stage: (l) =&gt;
+            l &lt;= LIN
+              ? &quot;nascent&quot;
+              : l === LOUT
+                ? &quot;active&quot;
+                : l &lt; L
+                  ? &quot;committed&quot;
+                  : &quot;finalized&quot;,
+        },
+        std: {
+          name: &quot;Standard&quot;,
+          other: &quot;pipet&quot;,
+          nodes: S,
+          plus: Splus,
+          lin: 0,
+          lout: L,
+          time: (k, l) =&gt; 7 * k + l,
+          // Layer l-1 of every position up to k.
+          reads: (k, l) =&gt; {
+            const out = [];
+            for (let j = 0; j &lt;= k; j++) out.push([j, l - 1]);
+            return out;
+          },
+          stage: (l) =&gt; (l &lt; L ? &quot;active&quot; : &quot;finalized&quot;),
+        },
+      };
+      const targets = [...emitted.pipet, ...emitted.std]; // everything that can be inspected
+      for (const key in MODELS) {
+        const m = MODELS[key];
+        for (const [i, p] of Object.entries(m.plus)) {
+          Object.assign(p, {
+            model: key,
+            i: +i,
+            l: m.lin,
+            t: m.time(+i, m.lin),
+            stage: &quot;active&quot;,
+            reads: [],
+          });
+          targets.push(p);
+        }
+        for (const n of Object.values(m.nodes)) {
+          Object.assign(n, { model: key, stage: m.stage(n.l) });
+          // A new stream starts without attention, and the snapshot is taken after token injection.
+          n.reads =
+            n.l === 0
+              ? []
+              : m
+                  .reads(n.i, n.l)
+                  .map(([j, lj]) =&gt;
+                    lj === m.lin ? m.plus[j] : m.nodes[`${j},${lj}`],
+                  );
+          for (const s of n.reads) s.readBy.push(n);
+          targets.push(n);
+        }
+      }
+      // The tokens a state depends on, through every read and injection before it.
+      function knownTokens(n) {
+        if (!n.knows) {
+          const from =
+            n.kind === &quot;plus&quot;
+              ? [MODELS[n.model].nodes[`${n.i},${n.l}`]]
+              : n.reads;
+          n.knows = new Set(from.flatMap((s) =&gt; [...knownTokens(s)]));
+          if (n.kind === &quot;plus&quot;) n.knows.add(n.i);
+        }
+        return n.knows;
+      }
+
+      // ----- Attention animation, one highlighted update per model per timestep -----
+      // PipeT: the update into l_out (or the leading stream during warm-up).
+      for (let t = 1; t &lt;= TMAX; t++) {
+        const q = t &gt;= LOUT ? t - LOUT : 0,
+          ql = t &gt;= LOUT ? LOUT : t;
+        addAttention(t, P[`${q},${ql}`], P[`${q},${ql}`].reads);
+      }
+      // Standard Transformer: the single update of this timestep.
+      for (let t = 1; t &lt;= TMAX; t++) {
+        const k = Math.floor(t / 7),
+          l = t - 7 * k;
+        if (l === 0) continue; // a new stream starts from its embedding; no layer update this timestep
+        addAttention(t, S[`${k},${l}`], S[`${k},${l}`].reads);
+      }
+      updaters.push((T) =&gt; {
+        for (const [node, levels] of attnLevels)
+          node.attnRing.setAttribute(
+            &quot;opacity&quot;,
+            Math.max(...levels.map((f) =&gt; f(T))),
+          );
+      });
+
+      // Token counters in the panel headers
+      for (const key of [&quot;pipet&quot;, &quot;std&quot;]) {
+        updaters.push((T) =&gt; {
+          const n = emitted[key].filter((w) =&gt; T &gt;= w.appear).length;
+          counters[key].textContent =
+            n === 0 ? &quot;&quot; : `${n} token${n === 1 ? &quot;&quot; : &quot;s&quot;}`;
+        });
+      }
+
+      // Captions. A caption that holds only when columns are timesteps also gives the one to show when they are streams.
+      const captions = [
+        [
+          0,
+          stepStart(2),
+          &quot;Two 6-layer models on the same clock: one timestep = one layer update&quot;,
+          &quot;Two 6-layer models: each column is one token&#x27;s residual stream&quot;,
+        ],
+        [
+          stepStart(2),
+          stepStart(5),
+          &quot;PipeT advances every stream at once, so a token comes out every timestep&quot;,
+        ],
+        [
+          stepStart(5),
+          stepStart(8),
+          &quot;Dotted lines: PipeT&#x27;s next-token update reads the newest state of every stream&quot;,
+        ],
+        [
+          stepStart(8),
+          stepStart(13) + 1.08,
+          &quot;The standard Transformer reads one layer of earlier tokens, one stream at a time&quot;,
+        ],
+        [
+          stepStart(13) + 1.08,
+          DURATION,
+          &quot;Same 14 timesteps: PipeT decodes 11 tokens, the standard Transformer 2&quot;,
+        ],
+      ];
+      captions.forEach(([s, e, html, streamHtml], k) =&gt; {
+        const caption = (h) =&gt;
+          el(
+            &quot;text&quot;,
+            {
+              x: 800,
+              y: 52,
+              &quot;text-anchor&quot;: &quot;middle&quot;,
+              &quot;font-size&quot;: 30,
+              &quot;font-weight&quot;: 600,
+              fill: &quot;var(--ink)&quot;,
+              class: &quot;sans&quot;,
+              opacity: 0,
+            },
+            captionLayer,
+            h,
+          );
+        const c = caption(html),
+          cs = streamHtml &amp;&amp; caption(streamHtml);
+        updaters.push((T) =&gt; {
+          const fin = k === 0 ? prog(T, 0.05, 0.3) : prog(T, s, 0.25);
+          const fout =
+            e &gt;= DURATION ? prog(T, T_FADE, 0.35) : prog(T, e - 0.12, 0.12);
+          const o = fin * (1 - fout);
+          c.setAttribute(&quot;opacity&quot;, cs ? o * timeText() : o);
+          if (cs) cs.setAttribute(&quot;opacity&quot;, o * streamText());
+        });
+      });
+
+      // Dynamic layer fades out at the end so the loop restarts on the bare scaffold.
+      updaters.push((T) =&gt;
+        dyn.setAttribute(&quot;opacity&quot;, 1 - prog(T, T_FADE, 0.35)),
+      );
+
+      function render(T) {
+        place(easeInOut(align));
+        for (const u of updaters) u(T);
+      }
+      window.render = render;
+      window.DURATION = DURATION;
+
+      // ---------- Playback ----------
+      // The animation is a pure function of T, so the slider just sets T and redraws.
+      // The slider stops at T_FADE: past that point the diagram is fading out for the loop.
+      const toggle = document.getElementById(&quot;toggle&quot;);
+      const slider = document.getElementById(&quot;slider&quot;);
+      const scrub = document.getElementById(&quot;scrub&quot;);
+      const readout = document.getElementById(&quot;readout&quot;);
+      slider.max = T_FADE;
+      for (let t = 0; t &lt;= TMAX; t++) {
+        const tick = document.createElement(&quot;div&quot;);
+        tick.className = &quot;tick&quot;;
+        tick.style.left = `calc(8px + (100% - 16px) * ${stepStart(t) / T_FADE})`; // 8px = half the thumb
+        scrub.insertBefore(tick, slider);
+      }
+
+      let T = 0,
+        playing = false,
+        onScreen = true,
+        held = false,
+        running = false,
+        last = null;
+
+      function draw() {
+        if (sel &amp;&amp; !visible(sel)) return select(null);
+        render(T);
+        const shown = Math.min(T, T_FADE);
+        const cur = Math.max(0, Math.min(TMAX, Math.floor((T - T_INTRO) / D)));
+        slider.value = shown;
+        slider.style.setProperty(&quot;--p&quot;, `${(shown / T_FADE) * 100}%`);
+        readout.textContent = `t = ${cur}`;
+        slider.setAttribute(&quot;aria-valuetext&quot;, `Timestep ${cur} of ${TMAX}`);
+        drawInspect();
+      }
+
+      // One frame loop moves the playhead (while playing) and the alignment (while switching), so either can
+      // change without the other: switching while paused slides the frozen frame, while playing it slides as it plays.
+      const MORPH = 0.9; // seconds to switch alignment
+      // Near the end of each loop, playback holds here while the layout switches to the other one,
+      // then plays on into the fade-out, so every loop starts in the opposite layout.
+      const SWITCH_AT = T_FADE - 0.5;
+      const advancing = () =&gt; playing &amp;&amp; onScreen &amp;&amp; !held;
+      const morphing = () =&gt; align !== alignTo &amp;&amp; onScreen;
+
+      function tick(now) {
+        const adv = advancing(),
+          mor = morphing();
+        if (!adv &amp;&amp; !mor) {
+          running = false;
+          last = null;
+          return;
+        }
+        if (last !== null) {
+          const dt = Math.min((now - last) / 1000, 0.1);
+          if (adv &amp;&amp; !(mor &amp;&amp; T === SWITCH_AT)) {
+            if (T &lt; SWITCH_AT &amp;&amp; T + dt &gt;= SWITCH_AT) {
+              T = SWITCH_AT;
+              setAlign(1 - alignTo);
+            } else T = (T + dt) % DURATION;
+          }
+          if (mor)
+            align =
+              alignTo &gt; align
+                ? Math.min(alignTo, align + dt / MORPH)
+                : Math.max(alignTo, align - dt / MORPH);
+          draw();
+        }
+        last = now;
+        requestAnimationFrame(tick);
+      }
+
+      function kick() {
+        if (running || !(advancing() || morphing())) return;
+        running = true;
+        requestAnimationFrame(tick);
+      }
+
+      // Column alignment: 0 = timesteps, 1 = streams. Switching again mid-slide turns back from where it is.
+      const alignButtons = [...document.querySelectorAll(&quot;#align button&quot;)];
+      const reduce = window.matchMedia(
+        &quot;(prefers-reduced-motion: reduce)&quot;,
+      ).matches;
+      function setAlign(to, animate = true) {
+        alignTo = to;
+        alignButtons.forEach((b, k) =&gt;
+          b.setAttribute(&quot;aria-pressed&quot;, k === to),
+        );
+        if (!animate || reduce || !onScreen) {
+          align = to;
+          draw();
+        }
+        kick();
+      }
+      alignButtons.forEach((b, k) =&gt;
+        b.addEventListener(&quot;click&quot;, () =&gt; setAlign(k)),
+      );
+
+      function setPlaying(on) {
+        playing = on;
+        toggle.classList.toggle(&quot;paused&quot;, !on);
+        toggle.setAttribute(
+          &quot;aria-label&quot;,
+          on ? &quot;Pause animation&quot; : &quot;Play animation&quot;,
+        );
+        kick();
+      }
+
+      toggle.addEventListener(&quot;click&quot;, () =&gt; {
+        select(null);
+        setPlaying(!playing);
+      });
+      slider.addEventListener(&quot;pointerdown&quot;, () =&gt; setPlaying(false));
+      slider.addEventListener(&quot;input&quot;, () =&gt; {
+        setPlaying(false);
+        T = Number(slider.value);
+        draw();
+      });
+
+      // Arrow keys step one timestep, landing where that timestep&#x27;s attention reads are fully drawn.
+      slider.addEventListener(&quot;keydown&quot;, (e) =&gt; {
+        const fwd = e.key === &quot;ArrowRight&quot; || e.key === &quot;ArrowUp&quot;,
+          back = e.key === &quot;ArrowLeft&quot; || e.key === &quot;ArrowDown&quot;;
+        if (!fwd &amp;&amp; !back) return;
+        e.preventDefault();
+        setPlaying(false);
+        const stops = [0];
+        for (let t = 0; t &lt;= TMAX; t++) stops.push(stepStart(t) + GROW);
+        stops.push(T_FADE);
+        T = fwd
+          ? (stops.find((s) =&gt; s &gt; T + 1e-3) ?? T_FADE)
+          : (stops.filter((s) =&gt; s &lt; T - 1e-3).pop() ?? 0);
+        draw();
+      });
+
+      // Don&#x27;t spend frames while scrolled out of view.
+      new IntersectionObserver(([entry]) =&gt; {
+        onScreen = entry.isIntersecting;
+        kick();
+      }).observe(document.getElementById(&quot;stage&quot;));
+
+      // ---------- Inspector ----------
+      // Hovering holds playback; clicking pins the state and pauses, like dragging the slider.
+      const stage = document.getElementById(&quot;stage&quot;);
+      const inspectLayer = document.getElementById(&quot;inspect&quot;);
+      const card = document.getElementById(&quot;card&quot;);
+      const HIT = 48,
+        RELEASE_MS = 200; // reach in SVG units; grace period so crossing a gap doesn&#x27;t flicker or resume playback
+      let sel = null,
+        pinned = false,
+        releaseTimer = null,
+        pointerType = &quot;mouse&quot;;
+
+      const visible = (n) =&gt; T &gt;= n.appear &amp;&amp; T &lt;= T_FADE;
+
+      function select(n, pin = false) {
+        clearTimeout(releaseTimer);
+        releaseTimer = null;
+        if (n === sel &amp;&amp; pin === pinned) return;
+        sel = n;
+        pinned = pin &amp;&amp; !!n;
+        held = !!n &amp;&amp; !pinned;
+        if (pinned) setPlaying(false);
+        stage.classList.toggle(&quot;inspecting&quot;, !!n);
+        stage.style.cursor = n ? &quot;pointer&quot; : &quot;&quot;;
+        fillCard();
+        draw();
+        kick();
+      }
+
+      function release() {
+        if (sel &amp;&amp; !pinned &amp;&amp; releaseTimer === null)
+          releaseTimer = setTimeout(() =&gt; select(null), RELEASE_MS);
+      }
+
+      function hitTest(e) {
+        const ctm = stage.getScreenCTM(),
+          p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+        let best = null,
+          bestDist = Math.max(HIT, 20 / ctm.a);
+        for (const n of targets) {
+          const d = Math.hypot(n.x - p.x, n.y - p.y);
+          if (d &lt; bestDist &amp;&amp; visible(n)) {
+            best = n;
+            bestDist = d;
+          }
+        }
+        return best;
+      }
+
+      stage.addEventListener(&quot;pointermove&quot;, (e) =&gt; {
+        if (pinned || e.pointerType === &quot;touch&quot;) return;
+        const n = hitTest(e);
+        if (n) select(n);
+        else release();
+      });
+      stage.addEventListener(&quot;pointerleave&quot;, release);
+      stage.addEventListener(&quot;pointerdown&quot;, (e) =&gt; {
+        pointerType = e.pointerType;
+      });
+      stage.addEventListener(&quot;click&quot;, (e) =&gt; {
+        const n = hitTest(e);
+        if (!n) select(null);
+        else if (n !== sel || !pinned) select(n, true);
+        else select(pointerType === &quot;touch&quot; ? null : n); // second click releases; a mouse is still hovering it
+      });
+
+      // Arrow keys move to the nearest state in that direction, across models and including ⊕ and words.
+      stage.addEventListener(&quot;keydown&quot;, (e) =&gt; {
+        if (e.key === &quot;Escape&quot;) return select(null);
+        const dir = {
+          ArrowLeft: [-1, 0],
+          ArrowRight: [1, 0],
+          ArrowUp: [0, -1],
+          ArrowDown: [0, 1],
+        }[e.key];
+        if (!dir) return;
+        e.preventDefault();
+        const shown = targets.filter(visible);
+        if (!sel)
+          return select(
+            shown
+              .filter((n) =&gt; n.kind === &quot;state&quot; &amp;&amp; n.model === &quot;pipet&quot;)
+              .sort((a, b) =&gt; a.appear - b.appear)
+              .pop() ?? null,
+            true,
+          );
+        let best = sel,
+          bestScore = Infinity;
+        for (const n of shown) {
+          const dx = n.x - sel.x,
+            dy = n.y - sel.y,
+            along = dx * dir[0] + dy * dir[1],
+            across = Math.abs(dx * dir[1]) + Math.abs(dy * dir[0]);
+          if (along &gt; 0 &amp;&amp; along + 2 * across &lt; bestScore) {
+            best = n;
+            bestScore = along + 2 * across;
+          }
+        }
+        select(best, true);
+      });
+
+      // Overlay: redrawn from scratch so readers appear and disappear as the slider moves.
+      function ringed(n, color, width) {
+        const g = el(
+          &quot;g&quot;,
+          { transform: `translate(${n.x},${n.y})` },
+          inspectLayer,
+        );
+        if (n.kind === &quot;plus&quot;) {
+          el(
+            &quot;circle&quot;,
+            { r: 13, fill: &quot;none&quot;, stroke: color, &quot;stroke-width&quot;: width },
+            g,
+          );
+          el(
+            &quot;circle&quot;,
+            { r: 9, fill: &quot;#ffffff&quot;, stroke: &quot;#1e293b&quot;, &quot;stroke-width&quot;: 1.5 },
+            g,
+          );
+          el(
+            &quot;path&quot;,
+            {
+              d: &quot;M-5.5,0 H5.5 M0,-5.5 V5.5&quot;,
+              stroke: &quot;#1e293b&quot;,
+              &quot;stroke-width&quot;: 1.5,
+            },
+            g,
+          );
+        } else {
+          el(
+            &quot;circle&quot;,
+            { r: R + 4, fill: &quot;none&quot;, stroke: color, &quot;stroke-width&quot;: width },
+            g,
+          );
+          el(
+            &quot;circle&quot;,
+            { r: R, fill: &quot;#ffffff&quot;, stroke: &quot;#1e293b&quot;, &quot;stroke-width&quot;: 1.8 },
+            g,
+          );
+          el(
+            &quot;text&quot;,
+            { class: &quot;math&quot;, fill: &quot;#1e293b&quot; },
+            g,
+            nodeLabel(n.i, n.l),
+          );
+        }
+      }
+
+      function pill(w, fill, stroke) {
+        const width = w.text.length * 14 + 18;
+        el(
+          &quot;rect&quot;,
+          {
+            x: w.x - width / 2,
+            y: w.y - 19,
+            width,
+            height: 38,
+            rx: 7,
+            fill,
+            stroke,
+            &quot;stroke-width&quot;: 2.4,
+          },
+          inspectLayer,
+        );
+        el(
+          &quot;text&quot;,
+          {
+            x: w.x,
+            y: w.y + 8,
+            &quot;text-anchor&quot;: &quot;middle&quot;,
+            &quot;font-size&quot;: 25,
+            &quot;font-weight&quot;: 600,
+            fill: &quot;var(--token)&quot;,
+            class: &quot;sans&quot;,
+          },
+          inspectLayer,
+          w.text,
+        );
+      }
+
+      function tokenPath(plus) {
+        el(
+          &quot;polyline&quot;,
+          {
+            points: plus.points.map((q) =&gt; `${q.x},${q.y}`).join(&quot; &quot;),
+            fill: &quot;none&quot;,
+            stroke: &quot;var(--token)&quot;,
+            &quot;stroke-width&quot;: 2.8,
+            &quot;stroke-linejoin&quot;: &quot;round&quot;,
+          },
+          inspectLayer,
+        );
+      }
+
+      function drawInspect() {
+        inspectLayer.replaceChildren();
+        if (!sel) return;
+        highlight(sel.t);
+        tickLabels.forEach((e, t) =&gt; {
+          e.setAttribute(&quot;font-weight&quot;, t === sel.t ? 700 : 400);
+          e.setAttribute(&quot;fill&quot;, t === sel.t ? &quot;var(--clock)&quot; : &quot;var(--ink)&quot;);
+        });
+
+        const m = MODELS[sel.model],
+          words = emitted[sel.model];
+        const predicted =
+          sel.kind === &quot;word&quot;
+            ? sel
+            : sel.kind === &quot;plus&quot;
+              ? words[sel.i - 1]
+              : sel.l === m.lout
+                ? words[sel.i]
+                : null;
+        const known = knownTokens(sel.kind === &quot;word&quot; ? sel.src : sel);
+        for (const w of words) {
+          if (w !== predicted &amp;&amp; known.has(w.j) &amp;&amp; visible(w))
+            pill(w, &quot;var(--known)&quot;, &quot;none&quot;);
+        }
+        if (predicted &amp;&amp; visible(predicted))
+          pill(
+            predicted,
+            &quot;#f8d9c8&quot;,
+            sel === predicted ? &quot;var(--clock)&quot; : &quot;none&quot;,
+          );
+
+        if (sel.kind === &quot;word&quot;) {
+          const plus = m.plus[sel.j];
+          if (plus &amp;&amp; visible(plus)) {
+            tokenPath(plus);
+            ringed(plus, &quot;var(--token)&quot;, 2.6);
+          }
+          ringed(sel.src, &quot;var(--token)&quot;, 3);
+          return;
+        }
+        if (sel.kind === &quot;plus&quot;) {
+          tokenPath(sel);
+          if (predicted) ringed(predicted.src, &quot;var(--token)&quot;, 3);
+        }
+        for (const r of sel.readBy)
+          if (visible(r)) ringed(r, &quot;var(--reader)&quot;, 2.6);
+        for (const s of sel.reads) {
+          const own = s.i === sel.i;
+          readLine(
+            s,
+            sel,
+            inspectLayer,
+            own
+              ? { &quot;stroke-width&quot;: 3 }
+              : { &quot;stroke-width&quot;: 2.2, &quot;stroke-dasharray&quot;: &quot;6 5&quot; },
+          );
+          ringed(s, &quot;var(--attn)&quot;, own ? 4 : 2.6);
+        }
+        ringed(sel, &quot;var(--clock)&quot;, 4);
+      }
+
+      // Card text
+      const hName = (i, l) =&gt;
+        `&lt;span class=&quot;h&quot;&gt;h&lt;span class=&quot;ss&quot;&gt;&lt;span&gt;${l}&lt;/span&gt;&lt;span&gt;${i}&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;`;
+      const xName = (j) =&gt; `&lt;span class=&quot;x&quot;&gt;x&lt;sub&gt;${j}&lt;/sub&gt;&lt;/span&gt;`;
+      const tok = (j) =&gt; `“${j === 0 ? &quot;[BOS]&quot; : WORDS[j - 1]}”`;
+      const layerName = (l) =&gt; (l === L ? &quot;L&quot; : l);
+      const plural = (n, s) =&gt; `${n} ${s}${n === 1 ? &quot;&quot; : &quot;s&quot;}`;
+      const chip = (stage, text) =&gt;
+        `&lt;span class=&quot;chip&quot; style=&quot;background:${STAGES[stage].fill}&quot;&gt;${STAGES[stage].emoji} ${text}&lt;/span&gt;`;
+      const updatesAt = (t) =&gt;
+        `${t === 1 ? &quot;The only update&quot; : t === 2 ? &quot;Both updates&quot; : `All ${Math.min(t, L)} updates`} at &lt;i&gt;t&lt;/i&gt; = ${t}`;
+
+      function knownText(set) {
+        const a = [...set].sort((p, q) =&gt; p - q);
+        if (a.length === 0) return &quot;No tokens yet&quot;;
+        return a.length === 1
+          ? xName(a[0])
+          : `${xName(a[0])}…${xName(a[a.length - 1])}`;
+      }
+
+      // Consecutive sources in the same stage become one chip, e.g. &quot;Committed 4–5 · layers 5, 4&quot;.
+      function readChips(reads) {
+        const groups = [];
+        for (const s of reads) {
+          const g = groups[groups.length - 1];
+          if (g &amp;&amp; g.stage === s.stage) g.items.push(s);
+          else groups.push({ stage: s.stage, items: [s] });
+        }
+        return groups
+          .map(({ stage, items }) =&gt; {
+            const a = items[0].i,
+              b = items[items.length - 1].i;
+            const layers = [
+              ...new Set(
+                items.map((s) =&gt;
+                  s.kind === &quot;plus&quot; ? `${s.l}⁺` : layerName(s.l),
+                ),
+              ),
+            ];
+            return chip(
+              stage,
+              `${STAGES[stage].label} ${a === b ? a : `${a}–${b}`} · layer${layers.length &gt; 1 ? &quot;s&quot; : &quot;&quot;} ${layers.join(&quot;, &quot;)}`,
+            );
+          })
+          .join(&quot;&quot;);
+      }
+
+      function roleText(n, m) {
+        const { i, l } = n,
+          pipet = n.model === &quot;pipet&quot;;
+        if (n.kind === &quot;plus&quot;)
+          return i === 0
+            ? `Adds ${xName(0)} = ${tok(0)}, the fixed first token.`
+            : `Adds ${xName(i)} = ${tok(i)}, predicted by ${hName(i - 1, layerName(m.lout))}.`;
+        if (l === m.lin)
+          return i === 0
+            ? `${xName(0)} = ${tok(0)} is added next, at ⊕.`
+            : `${xName(i)} is added next, at ⊕, once ${hName(i - 1, layerName(m.lout))} has predicted it.`;
+        if (l === m.lout) return `Predicts ${xName(i + 1)} = ${tok(i + 1)}.`;
+        if (!pipet)
+          return `Refines ${xName(i)}; nothing is emitted until layer &lt;i&gt;L&lt;/i&gt;.`;
+        if (l === 0)
+          return &quot;The learned initial vector shared by all positions.&quot;;
+        if (l &lt; m.lin) return &quot;Gathers context before its own token arrives.&quot;;
+        if (l === L)
+          return &quot;Stops evolving and supplies one key–value pair for all later attention.&quot;;
+        return `Has already predicted ${xName(i + 1)}; keeps refining for later streams to read.`;
+      }
+
+      function readByText(n, m) {
+        const { i, l, t } = n;
+        if (n.kind === &quot;state&quot; &amp;&amp; l === m.lin)
+          return `Nothing directly: later updates read ${hName(i, `${l}⁺`)} instead.`;
+        if (n.model === &quot;pipet&quot;)
+          return l === L
+            ? `Every update from &lt;i&gt;t&lt;/i&gt; = ${t + 1} on, as one saved key–value pair.`
+            : `${updatesAt(t + 1)}.`;
+        if (l === L)
+          return &quot;No attention reads it; it only predicts the next token.&quot;;
+        return `Layer ${layerName(l + 1)} of this and every later position, so this layer stays in the KV cache.`;
+      }
+
+      function fillCard() {
+        card.hidden = !sel;
+        if (!sel) return;
+        const m = MODELS[sel.model],
+          other = MODELS[m.other],
+          { i, l, t } = sel;
+        const row = (sw, label, html) =&gt;
+          `&lt;dt&gt;&lt;span class=&quot;sw ${sw}&quot;&gt;&lt;/span&gt;${label}&lt;/dt&gt;&lt;dd&gt;${html}&lt;/dd&gt;`;
+        let name,
+          meta,
+          stageChip = &quot;&quot;,
+          rows;
+        if (sel.kind === &quot;word&quot;) {
+          const plus = m.plus[sel.j],
+            when = (model, j) =&gt; (model === &quot;pipet&quot; ? j + LIN : 7 * j - 1);
+          name = xName(sel.j);
+          meta = `${m.name} · output ${tok(sel.j)} · at &lt;i&gt;t&lt;/i&gt; = ${t}`;
+          rows =
+            row(
+              &quot;token&quot;,
+              &quot;Predicted by&quot;,
+              `${hName(sel.src.i, layerName(m.lout))} at &lt;i&gt;t&lt;/i&gt; = ${sel.src.t}`,
+            ) +
+            row(&quot;knows&quot;, &quot;It knew&quot;, knownText(knownTokens(sel.src))) +
+            row(
+              &quot;&quot;,
+              &quot;Then&quot;,
+              plus
+                ? `Added to stream ${sel.j} at ⊕, so updates can read it from &lt;i&gt;t&lt;/i&gt; = ${plus.t + 1}.`
+                : `Enters stream ${sel.j} just past this window.`,
+            ) +
+            row(
+              &quot;&quot;,
+              `In ${other === MODELS.std ? &quot;Standard&quot; : &quot;PipeT&quot;}`,
+              `The same token comes out at &lt;i&gt;t&lt;/i&gt; = ${when(m.other, sel.j)}.`,
+            );
+        } else {
+          const plus = sel.kind === &quot;plus&quot;;
+          const hasToken = plus || l &gt; m.lin;
+          name = hName(i, plus ? `${l}⁺` : l);
+          meta =
+            `${m.name} · stream ${i}${hasToken ? ` (${xName(i)} = ${tok(i)})` : &quot;, token not received yet&quot;} · ` +
+            (plus
+              ? `layer ${l} plus its token · ready for &lt;i&gt;t&lt;/i&gt; = ${t + 1}`
+              : `layer ${layerName(l)} · ${l === 0 ? &quot;created&quot; : &quot;computed&quot;} at &lt;i&gt;t&lt;/i&gt; = ${t}`);
+          stageChip = chip(sel.stage, STAGES[sel.stage].label);
+          const knows = knownTokens(sel),
+            newest = Math.max(-1, ...knows);
+          const knowsNote =
+            newest &gt; i
+              ? `, ${plural(newest - i, &quot;token&quot;)} past its own position`
+              : !knows.has(i)
+                ? `; its own token ${xName(i)} hasn&#x27;t arrived`
+                : &quot;&quot;;
+          const own = sel.reads.find((s) =&gt; s.i === i);
+          const label = other === MODELS.std ? &quot;In Standard&quot; : &quot;In PipeT&quot;;
+          const sameKnows =
+            other === MODELS.std
+              ? l === 0
+                ? &quot;No tokens yet&quot;
+                : i === 0
+                  ? xName(0)
+                  : `${xName(0)}…${xName(i)}`
+              : knownText(knownTokens(MODELS.pipet.nodes[`${i},${l}`]));
+          rows =
+            row(plus || l === m.lout ? &quot;token&quot; : &quot;&quot;, &quot;Role&quot;, roleText(sel, m)) +
+            (own
+              ? row(
+                  &quot;query&quot;,
+                  &quot;Query&quot;,
+                  `${hName(i, own.kind === &quot;plus&quot; ? `${own.l}⁺` : layerName(own.l))}, its own previous state`,
+                )
+              : &quot;&quot;) +
+            row(
+              &quot;reads&quot;,
+              &quot;Reads&quot;,
+              sel.reads.length
+                ? `${plural(sel.reads.length, &quot;stream&quot;)}: ${readChips(sel.reads)}&lt;span class=&quot;note&quot;&gt;${m === MODELS.pipet ? (t === 1 ? `${updatesAt(t)}.` : `${updatesAt(t)} share this snapshot.`) : `The only update at &lt;i&gt;t&lt;/i&gt; = ${t}.`}&lt;/span&gt;`
+                : plus
+                  ? &quot;Nothing: this step only adds the token embedding.&quot;
+                  : &quot;Nothing: attention starts at layer 1.&quot;,
+            ) +
+            row(&quot;knows&quot;, &quot;Knows&quot;, `${knownText(knows)}${knowsNote}`) +
+            row(&quot;reader&quot;, &quot;Read by&quot;, readByText(sel, m)) +
+            row(
+              &quot;&quot;,
+              label,
+              plus
+                ? `The same token enters its stream at &lt;i&gt;t&lt;/i&gt; = ${other.time(i, other.lin)}.`
+                : `The same state is ready at &lt;i&gt;t&lt;/i&gt; = ${other.time(i, l)} and knows ${sameKnows === &quot;No tokens yet&quot; ? &quot;no tokens yet&quot; : sameKnows}.`,
+            );
+        }
+        card.className = sel.model === &quot;pipet&quot; ? &quot;over-std&quot; : &quot;over-pipet&quot;;
+        card.innerHTML =
+          `&lt;div class=&quot;head&quot;&gt;&lt;span class=&quot;big&quot;&gt;${name}&lt;/span&gt;&lt;span&gt;${meta}&lt;/span&gt;${stageChip}` +
+          `${pinned ? &#x27;&lt;span class=&quot;pin&quot;&gt;Pinned · Esc to release&lt;/span&gt;&#x27; : &quot;&quot;}&lt;/div&gt;&lt;dl&gt;${rows}&lt;/dl&gt;`;
+      }
+
+      const params = new URLSearchParams(location.search);
+      if (params.get(&quot;align&quot;) === &quot;stream&quot;) {
+        align = alignTo = 1;
+        alignButtons.forEach((b, k) =&gt; b.setAttribute(&quot;aria-pressed&quot;, k === 1));
+      }
+      if (params.has(&quot;record&quot;)) {
+        document.documentElement.classList.add(&quot;record&quot;);
+        render(0);
+      } else if (reduce || params.has(&quot;still&quot;)) {
+        T = T_END + 0.3;
+        draw();
+        setPlaying(false);
+      } else {
+        draw();
+        setPlaying(true);
+      }
+    &lt;/script&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+"
+                  title="Animation comparing a standard Transformer, which emits one token every L timesteps, with PipeT, which advances every stream at once and emits a token every timestep. Use the slider to scrub through the timesteps, and hover or use the arrow keys on a hidden state to see what it attends to."
+                ></iframe>
+              </div>
+            </figure>
+            <h2 class="subtitle has-text-centered">
+              A standard Transformer (top) finishes one token before starting
+              the next. <b>PipeT</b> (bottom) works on many tokens at once, each
+              at a different layer. A token enters at layer &ell;<sub>in</sub>
+              and the next token is predicted at &ell;<sub>out</sub>, so every
+              timestep emits one token.
+            </h2>
+          </div>
+        </div>
+      </section>
+
+      
+      <section class="section hero is-light">
+        <div class="container is-max-desktop">
+          <div class="columns is-centered has-text-centered">
+            <div class="column is-four-fifths">
+              <h2 class="title is-3">Abstract</h2>
+              <div class="content has-text-justified">
+                <p>
+                  Transformers are slow at generating text. Each token must be
+                  <em>fully</em> generated <em>before</em> work starts on the
+                  next token. Diffusion models break this serial decoding
+                  bottleneck, but they are non-autoregressive latent-variable
+                  models. We propose PipeT, a <em>pipelined</em> architecture
+                  that remains autoregressive and simple to train. Tokens are
+                  decoded in parallel while attending to one another
+                  bidirectionally, as in diffusion, but token <i>i</i>+1 is
+                  slightly delayed with respect to token <i>i</i>, so it can
+                  depend autoregressively on token <i>i</i> and all previous
+                  tokens. This architecture decodes faster than a standard
+                  Transformer, reduces KV cache size, and is formally more
+                  expressive than both recurrent and transformer-based models.
+                  Although pretraining and prompt prefilling are
+                  slower than in a standard Transformer, this tradeoff may be
+                  worth it when generation is a bottleneck, as when generating
+                  code or long reasoning traces during RL training or after
+                  deployment.
+                </p>
+                <p>
+                  We evaluate models with 4M&ndash;200M parameters trained on
+                  the SlimPajama-6B subset using Chinchilla-style token budgets.
+                  At 100M parameters, a 3-layer PipeT matches the test loss of a
+                  4-layer standard Transformer of the same size while decoding
+                  1.8&times; faster with a 3.1&times; smaller KV cache. It
+                  nearly matches a 16-layer standard Transformer (the best depth
+                  we evaluated at this budget), with only 0.0228 bpb (1.86%)
+                  higher test loss, while decoding 4.4&times; faster with a
+                  6.3&times; smaller KV cache.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <section class="section">
+        <div class="container is-max-desktop">
+          <h2 class="title is-3">How it works</h2>
+          <div class="content">
+            <p>
+              Like a pipelined CPU, PipeT starts the next token before the
+              current one is done: it computes layer 1 of token 9 together with
+              layer 2 of token 8, layer 3 of token 7, and so on. To make this
+              possible, token input and prediction move to
+              <b>intermediate layers</b>. Each residual stream goes through four
+              stages:
+            </p>
+            <ul>
+              <li>
+                <b>Nascent</b>: starts from a learned vector, before its token
+                is known.
+              </li>
+              <li>
+                <b>Active</b>: receives its token at &ell;<sub>in</sub> and
+                predicts the next token at &ell;<sub>out</sub>.
+              </li>
+              <li>
+                <b>Committed</b>: keeps refining itself using later tokens.
+              </li>
+              <li>
+                <b>Finalized</b>: at layer <i>L</i> it stops and keeps a single
+                KV pair.
+              </li>
+            </ul>
+            <p>
+              <b>Mixed-layer attention:</b> each update attends to the highest
+              available layer of every stream. No future token is visible when
+              predicting, so training is ordinary teacher-forced next-token
+              prediction.
+            </p>
+          </div>
+          <figure class="figure">
+            <img
+              src="static/images/figure_final_std_trans.png"
+              alt="Standard Transformer computation graph"
+              loading="lazy"
+            />
+            <figcaption>
+              For comparison: a standard Transformer advances only one stream
+              per timestep and emits a token only once every <i>L</i> timesteps.
+            </figcaption>
+          </figure>
+
+          <div class="columns is-multiline">
+            <div class="column is-half">
+              <div class="box property-box">
+                <h3 class="title is-5">
+                  <i class="fas fa-bolt"></i> Faster decoding
+                </h3>
+                <p>
+                  <i>L</i> streams update in parallel against the same KV
+                  history, giving about <i>L</i>&times; higher arithmetic
+                  intensity.
+                </p>
+              </div>
+            </div>
+            <div class="column is-half">
+              <div class="box property-box">
+                <h3 class="title is-5">
+                  <i class="fas fa-memory"></i> Smaller KV cache
+                </h3>
+                <p>
+                  Each finished stream keeps one KV pair instead of one per
+                  layer: about <i>L</i>&times; less memory.
+                </p>
+              </div>
+            </div>
+            <div class="column is-half">
+              <div class="box property-box">
+                <h3 class="title is-5">
+                  <i class="fas fa-redo"></i> Recurrent expressivity
+                </h3>
+                <p>
+                  Streams can attend to earlier streams at the same layer, so
+                  computation depth grows with sequence length, as in an RNN.
+                </p>
+              </div>
+            </div>
+            <div class="column is-half">
+              <div class="box property-box">
+                <h3 class="title is-5">
+                  <i class="fas fa-hourglass-half"></i> The cost
+                </h3>
+                <p>
+                  Training and prefill can no longer parallelize over positions,
+                  only over layers, so they are slower.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <section class="section hero is-light">
+        <div class="container is-max-desktop">
+          <h2 class="title is-3">Quality vs. efficiency</h2>
+          <div class="content">
+            <p>
+              At each budget from 4M to 200M parameters, one PipeT model
+              (&#9733;) is compared against a depth&ndash;width sweep of
+              Transformer++ baselines (&#9679;). Lower and further left is
+              better.
+            </p>
+          </div>
+          <div class="columns">
+            <div class="column">
+              <figure class="figure">
+                <img
+                  src="static/images/quality-latency.png"
+                  alt="Test loss vs decoding time per token"
+                  loading="lazy"
+                />
+                <figcaption>Test loss vs. decoding time per token.</figcaption>
+              </figure>
+            </div>
+            <div class="column">
+              <figure class="figure">
+                <img
+                  src="static/images/quality-kv-cache.png"
+                  alt="Test loss vs KV-cache memory"
+                  loading="lazy"
+                />
+                <figcaption>
+                  Test loss vs. KV-cache memory (512 decoding steps).
+                </figcaption>
+              </figure>
+            </div>
+          </div>
+          <table class="table is-fullwidth is-striped stat-table">
+            <thead>
+              <tr>
+                <th>Budget</th>
+                <th>vs. Transformer++</th>
+                <th>Speedup</th>
+                <th>KV cache</th>
+                <th>Loss gap (bpb)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>100M</td>
+                <td>4-layer (same loss)</td>
+                <td>1.8&times;</td>
+                <td>3.1&times; smaller</td>
+                <td>matched</td>
+              </tr>
+              <tr>
+                <td>100M</td>
+                <td>16-layer (best loss)</td>
+                <td>4.4&times;</td>
+                <td>6.3&times; smaller</td>
+                <td>+0.0228 (1.86%)</td>
+              </tr>
+              <tr>
+                <td>200M</td>
+                <td>24-layer (best loss)</td>
+                <td>4.6&times;</td>
+                <td>7.6&times; smaller</td>
+                <td>+0.0355 (3.15%)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      
+      <section class="section">
+        <div class="container is-max-desktop">
+          <h2 class="title is-3">State tracking and recall</h2>
+          <div class="content">
+            <p>
+              Like an RNN, PipeT's recurrence lets it track the state of
+              permutation word problems (S<sub>3</sub>, S<sub>5</sub>). On
+              S<sub>5</sub>, Transformer++ and Mamba-2 fall to chance within 10
+              permutations, while PipeT tracks the state through the training
+              length (shaded) and beyond it. Unlike the RNN, it also keeps
+              Transformer-level associative recall (MQAR), where the RNN
+              collapses. Of the four models, PipeT is the only one that does
+              well on both tasks.
+            </p>
+          </div>
+          <div class="columns">
+            <div class="column">
+              <figure class="figure">
+                <img
+                  src="static/images/parity_vs_state_max_s3_extended_v3.png"
+                  alt="S3 state tracking accuracy"
+                  loading="lazy"
+                />
+                <figcaption>S<sub>3</sub> state tracking.</figcaption>
+              </figure>
+            </div>
+            <div class="column">
+              <figure class="figure">
+                <img
+                  src="static/images/parity_vs_state_max_s5_extended_v3.png"
+                  alt="S5 state tracking accuracy"
+                  loading="lazy"
+                />
+                <figcaption>S<sub>5</sub> state tracking.</figcaption>
+              </figure>
+            </div>
+            <div class="column">
+              <figure class="figure">
+                <img
+                  src="static/images/recall_capacity_L256_V128_max_v3.png"
+                  alt="Multi-query associative recall accuracy"
+                  loading="lazy"
+                />
+                <figcaption>Multi-query associative recall.</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <section class="hero is-small is-light">
+        <div class="hero-body">
+          <div class="container is-max-desktop">
+            <h2 class="title is-3">More results</h2>
+            <div id="results-carousel" class="carousel results-carousel">
+              <div class="item">
+                <img
+                  src="static/images/depth-scaling.png"
+                  alt="Depth-width sweep"
+                  loading="lazy"
+                />
+                <h2 class="subtitle has-text-centered">
+                  Architecture search favors shallow, wide PipeT models (L =
+                  2&ndash;3).
+                </h2>
+              </div>
+              <div class="item">
+                <img
+                  src="static/images/schedule-ablation.png"
+                  alt="Input and output layer placement sweep"
+                  loading="lazy"
+                />
+                <h2 class="subtitle has-text-centered">
+                  Sweep over input/output layer placement.
+                </h2>
+              </div>
+              <div class="item">
+                <img
+                  src="static/images/recipe-law.png"
+                  alt="Scaling law along the recipe"
+                  loading="lazy"
+                />
+                <h2 class="subtitle has-text-centered">
+                  A power law fit on 4M&ndash;100M predicts the held-out 200M
+                  loss within 0.0002 bpb.
+                </h2>
+              </div>
+              <div class="item">
+                <img
+                  src="static/images/stalling_comparison.png"
+                  alt="Stalling schedules"
+                  loading="lazy"
+                />
+                <h2 class="subtitle has-text-centered">
+                  Stalling: a gap &tau; = &ell;<sub>out</sub> &minus; &ell;<sub
+                    >in</sub
+                  >
+                  &gt; 1 trades speed for sequential depth.
+                </h2>
+              </div>
+              <div class="item">
+                <img
+                  src="static/images/quality-latency-stall.png"
+                  alt="Quality vs latency with stalling"
+                  loading="lazy"
+                />
+                <h2 class="subtitle has-text-centered">
+                  At 30M, &tau; = 3&ndash;5 beats the best Transformer on loss,
+                  speed, and memory.
+                </h2>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      
+
+      
+      <section class="section" id="BibTeX">
+        <div class="container is-max-desktop content">
+          <div class="bibtex-header">
+            <h2 class="title">BibTeX</h2>
+            <button
+              class="copy-bibtex-btn"
+              onclick="copyBibTeX()"
+              title="Copy BibTeX to clipboard"
+            >
+              <i class="fas fa-copy"></i>
+              <span class="copy-text">Copy</span>
+            </button>
+          </div>
+          
+          <pre id="bibtex-code"><code>@article{pipet2026,
+  title={Pipelined Transformers: Autoregressive Generation with Increased Parallelism},
+  author={Anonymous},
+  year={2026}
+}</code></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="columns is-centered">
+          <div class="column is-8">
+            <div class="content">
+              <p>
+                This page was built using the
+                <a
+                  href="https://github.com/eliahuhorwitz/Academic-project-page-template"
+                  target="_blank"
+                  >Academic Project Page Template</a
+                >
+                which was adopted from the
+                <a href="https://nerfies.github.io" target="_blank">Nerfies</a>
+                project page. This website is licensed under a
+                <a
+                  rel="license"
+                  href="http://creativecommons.org/licenses/by-sa/4.0/"
+                  target="_blank"
+                  >Creative Commons Attribution-ShareAlike 4.0 International
+                  License</a
+                >.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
