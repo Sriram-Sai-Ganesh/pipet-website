@@ -782,7 +782,7 @@ a:focus {
   background: #fff;
 }
 
-/* SVG scales with width (1432.4/1600) above fixed-height playback controls (52px), plus 1px for rounding. */
+/* Fixed-height controls (96px) above an SVG that scales with width (1432.4/1600), plus 1px for rounding. */
 .pipet-animation {
   container-type: inline-size;
 }
@@ -790,7 +790,7 @@ a:focus {
 .pipet-animation iframe {
   display: block;
   width: 100%;
-  height: calc(89.525cqw + 53px);
+  height: calc(89.525cqw + 97px);
   border: 0;
   background: #fff;
 }
